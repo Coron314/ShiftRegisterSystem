@@ -561,7 +561,9 @@
         try {
           // リンク先は全員分の表（シフト希望登録画面）。各自が自分の行に入力する
           const entryUrl = new URL("shift_availability.html", window.location.href).href;
-          await ShiftDB.callFunction("line-send", { action: "recruit", text: message + "\n" + entryUrl });
+          const cardUrl = new URL("recruit-card.png", window.location.href).href;
+          // 文章の後に、タップで登録画面が開くカード（リッチメッセージ風の画像）を続けて送る
+          await ShiftDB.callFunction("line-send", { action: "recruit", text: message, card: { imageUrl: cardUrl, linkUrl: entryUrl } });
         } catch (e) {
           showRecruitResult("募集は反映しましたが、LINEの通知に失敗しました：" + e.message);
           return;
@@ -589,17 +591,21 @@
     const start = new Date(startIso + "T00:00:00");
     const end = new Date(start);
     end.setDate(start.getDate() + weeks * 7 - 1);
-    const fmt = (d) => `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAY_LABELS[d.getDay()]})`;
-    return `【シフト希望の募集】
-${fmt(start)}〜${fmt(end)}のシフト希望を募集します。
-○月○日までに、下のリンクから登録してください。`;
+    const fmt = (d) => `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAY_LABELS[d.getDay()]}曜日)`;
+    const weeksLabel = ["", "一週間", "二週間", "三週間", "四週間"][weeks] || `${weeks}週間`;
+    return `お疲れ様です
+${weeksLabel}分のシフト連絡です
+${fmt(start)}〜${fmt(end)}までのシフトを作成します！！
+まだシフト表に⭕❌記入していない方々は、下のボタンから希望を登録してください！
+※シフト連絡が遅くなる場合は、HELP空いてる所に入って下さい
+出勤可能⭕日と時間希望など何かありましたら、お知らせ連絡をお願いします！`;
   }
 
   async function showQuota(el) {
     try {
       const q = await ShiftDB.callFunction("line-send", { action: "quota" });
       let text = q.limit === null ? `今月の送信数：${q.used}通` : `今月の送信数：${q.used} / ${q.limit}通`;
-      if (q.recipients !== null) text += `（1回の通知で約${q.recipients}通使います）`;
+      if (q.recipients !== null) text += `（1回の通知で約${q.recipients * 2}通使います。文章とカードの2通ぶん）`;
       el.textContent = text;
     } catch (e) {
       el.textContent = "今月の送信数を確認できませんでした（" + e.message + "）";

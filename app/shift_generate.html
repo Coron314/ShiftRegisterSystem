@@ -2543,7 +2543,7 @@
     const errorText = overlay.querySelector("#sendError");
     const cancelBtn = overlay.querySelector(".cancel-btn");
     const confirmBtn = overlay.querySelector(".confirm-btn");
-    messageInput.value = defaultSendMessage();
+    messageInput.value = "";
     showSendQuota(overlay.querySelector("#sendQuota"));
 
     function close() {
@@ -2572,12 +2572,6 @@
       close();
       alert("LINEに送信しました。");
     });
-  }
-
-  function defaultSendMessage() {
-    const dates = getDateRange(state.startDate, DAYS_COUNT);
-    const fmt = (d) => `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAY_LABELS[d.getDay()]})`;
-    return `${fmt(dates[0])}〜${fmt(dates[dates.length - 1])}のシフトが完成しました。`;
   }
 
   async function showSendQuota(el) {

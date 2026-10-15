@@ -1,5 +1,5 @@
 // リーダー用画面から公式LINEの友だち全員へ一斉送信する Edge Function。
-//   action "recruit"     … シフト希望の募集通知（文章）
+//   action "recruit"     … シフト希望の募集通知（文章＋タップでシフト希望登録画面が開くカード）
 //   action "upload-urls" … 完成シフトの画像を置く場所（Storage の署名付きアップロードURL）を発行する
 //   action "shift"       … 完成シフトの画像（＋文章）
 //   action "quota"       … 今月の送信可能数・使用数と、送信先の人数（目安）
@@ -18,6 +18,7 @@ const LINE_API = "https://api.line.me/v2/bot";
 const MAX_IMAGES = 4; // 1回の送信は吹き出し5つまで（文章1＋画像4）
 const BUCKET = "shift-images";
 const DEFAULT_PASSWORD = "0507";
+const PAGES_PREFIX = "https://coron314.github.io/ShiftRegisterSystem/"; // 募集カードの画像・リンク先として許可するURL
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -95,7 +96,34 @@ Deno.serve(async (req) => {
     if (body.action === "recruit") {
       const text = typeof body.text === "string" ? body.text.trim() : "";
       if (!text || text.length > 4000) return json({ error: "文章が空か、長すぎます。" }, 400);
-      return await broadcast([{ type: "text", text }]);
+      const messages: unknown[] = [{ type: "text", text }];
+      // 文章の後に、タップするとシフト希望登録画面が開くカード（画像＋リンク）を付ける
+      if (body.card !== undefined) {
+        const card = body.card as { imageUrl?: unknown; linkUrl?: unknown };
+        if (
+          typeof card?.imageUrl !== "string" || !card.imageUrl.startsWith(PAGES_PREFIX) ||
+          typeof card?.linkUrl !== "string" || !card.linkUrl.startsWith(PAGES_PREFIX)
+        ) {
+          return json({ error: "カードの画像・リンク先が正しくありません（公開URLから操作してください）。" }, 400);
+        }
+        messages.push({
+          type: "flex",
+          altText: "シフト希望を登録する",
+          contents: {
+            type: "bubble",
+            size: "kilo",
+            hero: {
+              type: "image",
+              url: card.imageUrl,
+              size: "full",
+              aspectRatio: "1:1",
+              aspectMode: "cover",
+              action: { type: "uri", label: "シフト希望を登録する", uri: card.linkUrl },
+            },
+          },
+        });
+      }
+      return await broadcast(messages);
     }
 
     if (body.action === "upload-urls") {
