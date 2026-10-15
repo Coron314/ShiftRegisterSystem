@@ -837,7 +837,10 @@
 <script src="db.js"></script>
 <script>
 (async function () {
-  await ShiftDB.ready();
+  const dataReady = ShiftDB.ready();
+  // URLを直接開いた場合などはここでパスワードを求める。sample と入力された場合はダミーデータで自動生成まで行う（デバッグ用）
+  const authResult = await ShiftDB.requireAuth({ allowSample: true });
+  await dataReady;
   const AUTO_GENERATE_KEY = "shiftAutoGenerate";
   const MANUAL_CREATE_KEY = "shiftManualCreate";
   const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -971,6 +974,11 @@
       sessionStorage.removeItem(MANUAL_CREATE_KEY);
     } catch (e) {
       manualCreate = false;
+    }
+    if (authResult === "sample") {
+      ShiftDB.fillSampleData(state);
+      runGeneration();
+      return;
     }
     // 手動編集済みのシフトがある場合は、作り直してよいか確認する（断れば編集済みのまま表示）
     if (manualCreate && confirmDiscardEdits("白紙から作り直す")) {
@@ -2600,21 +2608,21 @@
   }
 
   // 画像をSupabaseのStorage（公開バケット shift-images）に置き、LINEに渡すURLを返す。
-  // 送るたびに別のフォルダにする（同じURLを上書きすると、過去のトークの画像まで差し替わるため）。
+  // 置き場所はEdge Function「line-send」がパスワードを確認したうえで発行する（送るたびに別のフォルダ。
+  // 同じURLを上書きすると、過去のトークの画像まで差し替わるため）。
   async function uploadImages(images) {
     const storage = ShiftDB.client.storage.from("shift-images");
-    const folder = new Date().toISOString().replace(/[:.]/g, "-");
+    const { slots } = await ShiftDB.callFunction("line-send", { action: "upload-urls", count: images.length });
     const urls = [];
     for (let i = 0; i < images.length; i++) {
-      const originalPath = `${folder}/week${i + 1}.png`;
-      const previewPath = `${folder}/week${i + 1}_preview.jpg`;
-      const up1 = await storage.upload(originalPath, images[i].original, { contentType: "image/png" });
+      const slot = slots[i];
+      const up1 = await storage.uploadToSignedUrl(slot.original.path, slot.original.token, images[i].original, { contentType: "image/png" });
       if (up1.error) throw new Error("画像を保存できませんでした（" + up1.error.message + "）");
-      const up2 = await storage.upload(previewPath, images[i].preview, { contentType: "image/jpeg" });
+      const up2 = await storage.uploadToSignedUrl(slot.preview.path, slot.preview.token, images[i].preview, { contentType: "image/jpeg" });
       if (up2.error) throw new Error("画像を保存できませんでした（" + up2.error.message + "）");
       urls.push({
-        original: storage.getPublicUrl(originalPath).data.publicUrl,
-        preview: storage.getPublicUrl(previewPath).data.publicUrl
+        original: storage.getPublicUrl(slot.original.path).data.publicUrl,
+        preview: storage.getPublicUrl(slot.preview.path).data.publicUrl
       });
     }
     return urls;

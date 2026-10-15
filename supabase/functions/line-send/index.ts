@@ -1,10 +1,12 @@
 // リーダー用画面から公式LINEの友だち全員へ一斉送信する Edge Function。
-//   action "recruit" … シフト希望の募集通知（文章）
-//   action "shift"   … 完成シフトの画像（＋文章）
-//   action "quota"   … 今月の送信可能数・使用数と、送信先の人数（目安）
+//   action "recruit"     … シフト希望の募集通知（文章）
+//   action "upload-urls" … 完成シフトの画像を置く場所（Storage の署名付きアップロードURL）を発行する
+//   action "shift"       … 完成シフトの画像（＋文章）
+//   action "quota"       … 今月の送信可能数・使用数と、送信先の人数（目安）
+// どの action も、画面から添えて送られる管理用パスワード（4桁）が admin_settings の値と一致した時だけ実行する。
 //
 // 必要なシークレット：LINE_CHANNEL_ACCESS_TOKEN（Messaging APIチャネルの長期チャネルアクセストークン）
-// 設定：「Verify JWT with legacy secret」はオフにする（ログイン確認はこの中で行う）
+// 設定：「Verify JWT with legacy secret」はオフにする（パスワードの確認はこの中で行う）
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const CORS = {
@@ -14,6 +16,8 @@ const CORS = {
 };
 const LINE_API = "https://api.line.me/v2/bot";
 const MAX_IMAGES = 4; // 1回の送信は吹き出し5つまで（文章1＋画像4）
+const BUCKET = "shift-images";
+const DEFAULT_PASSWORD = "0507";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -76,11 +80,15 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const admin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-    const { data: userData } = await admin.auth.getUser(jwt);
-    if (!userData?.user) return json({ error: "ログインし直してください。" }, 401);
-
     const body = await req.json();
+
+    const { data: setting, error: settingError } = await admin
+      .from("admin_settings").select("password").eq("id", 1).maybeSingle();
+    if (settingError) throw settingError;
+    const password = setting?.password ?? DEFAULT_PASSWORD;
+    if (typeof body.password !== "string" || body.password !== password) {
+      return json({ error: "パスワードが確認できませんでした。シフト希望登録画面から入り直してください。" }, 403);
+    }
 
     if (body.action === "quota") return await quota();
 
@@ -90,9 +98,29 @@ Deno.serve(async (req) => {
       return await broadcast([{ type: "text", text }]);
     }
 
+    if (body.action === "upload-urls") {
+      const count = Number(body.count);
+      if (!Number.isInteger(count) || count < 1 || count > MAX_IMAGES) return json({ error: "画像の枚数が正しくありません。" }, 400);
+      // 送るたびに別のフォルダにする（同じURLを上書きすると、過去のトークの画像まで差し替わるため）
+      const folder = new Date().toISOString().replace(/[:.]/g, "-") + "-" + crypto.randomUUID().slice(0, 8);
+      const storage = admin.storage.from(BUCKET);
+      const slots = [];
+      for (let i = 1; i <= count; i++) {
+        const original = await storage.createSignedUploadUrl(`${folder}/week${i}.png`);
+        if (original.error) throw original.error;
+        const preview = await storage.createSignedUploadUrl(`${folder}/week${i}_preview.jpg`);
+        if (preview.error) throw preview.error;
+        slots.push({
+          original: { path: original.data.path, token: original.data.token },
+          preview: { path: preview.data.path, token: preview.data.token },
+        });
+      }
+      return json({ slots });
+    }
+
     if (body.action === "shift") {
       const images = Array.isArray(body.images) ? body.images : [];
-      const allowedPrefix = supabaseUrl + "/storage/v1/object/public/shift-images/";
+      const allowedPrefix = supabaseUrl + "/storage/v1/object/public/" + BUCKET + "/";
       const valid = images.length >= 1 && images.length <= MAX_IMAGES && images.every((img: { original?: unknown; preview?: unknown }) =>
         typeof img.original === "string" && img.original.startsWith(allowedPrefix) &&
         typeof img.preview === "string" && img.preview.startsWith(allowedPrefix)

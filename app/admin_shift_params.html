@@ -362,7 +362,9 @@
 <script src="db.js"></script>
 <script>
 (async function () {
-  await ShiftDB.ready();
+  const dataReady = ShiftDB.ready();
+  await ShiftDB.requireAuth();
+  await dataReady;
   const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 
   const DEFAULT_SHIFT_PARAMS = {
@@ -528,10 +530,6 @@
     confirmBtn.addEventListener("click", async () => {
       const notify = notifyCheck.checked;
       const message = messageInput.value.trim();
-      if (notify && !window.SHIFT_CONFIG.LIFF_ID) {
-        errorText.textContent = "入力画面（LIFF）が未設定のため通知できません。チェックを外して募集してください。";
-        return;
-      }
       if (notify && !message) {
         errorText.textContent = "通知の文章を入力してください。";
         return;
@@ -553,7 +551,7 @@
       updateRestoreButtonVisibility();
       renderTempClosureList();
 
-      // 募集内容が保存されてから通知する（通知を見たメンバーがすぐ開いても新しい期間が出るように）
+      // 募集内容が保存されてから通知する（通知を見た人がすぐ開いても新しい期間が出るように）
       const saved = await ShiftDB.flush();
       if (!saved) {
         showRecruitResult("募集の保存に失敗しました。通信状態を確認して、もう一度「募集する」を押してください。");
@@ -561,8 +559,9 @@
       }
       if (notify) {
         try {
-          const liffUrl = "https://liff.line.me/" + window.SHIFT_CONFIG.LIFF_ID;
-          await ShiftDB.callFunction("line-send", { action: "recruit", text: message + "\n" + liffUrl });
+          // リンク先は全員分の表（シフト希望登録画面）。各自が自分の行に入力する
+          const entryUrl = new URL("shift_availability.html", window.location.href).href;
+          await ShiftDB.callFunction("line-send", { action: "recruit", text: message + "\n" + entryUrl });
         } catch (e) {
           showRecruitResult("募集は反映しましたが、LINEの通知に失敗しました：" + e.message);
           return;
