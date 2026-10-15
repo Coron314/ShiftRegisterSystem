@@ -518,17 +518,20 @@
     }
   }
 
-  /* --- LINE送信用の画像化：印刷と同じく、A4の外枠・＋ボタン・警告の赤枠を消し、縮小せずに描画する --- */
+  /* --- LINE送信用の画像化：印刷と同じく、A4の外枠・＋ボタン・氏名の枠（警告の赤枠も含む）を消し、縮小せずに描画する --- */
   body.capture-mode .a4-sheet {
     zoom: 1 !important;
     border-color: transparent;
     box-shadow: none;
   }
-  body.capture-mode .a4-sheet .add-shift-btn {
+  body.capture-mode .a4-sheet .add-shift-btn,
+  body.capture-mode .a4-sheet .assign-empty {
     visibility: hidden;
   }
+  body.capture-mode .a4-sheet .name-frame,
   body.capture-mode .a4-sheet .name-frame.warn {
-    border-color: #ccc;
+    border-color: transparent;
+    background: transparent;
     box-shadow: none;
   }
   .popup.send-popup {
@@ -800,6 +803,18 @@
     .a4-sheet + .a4-sheet {
       break-before: page;
       page-break-before: always;
+    }
+    /* シフト追加の「＋」ボタンと「未定」表記は印刷しない（場所は残してレイアウトを保つ） */
+    .a4-sheet .add-shift-btn,
+    .a4-sheet .assign-empty {
+      visibility: hidden;
+    }
+    /* 氏名＋時間を囲む枠（警告の赤枠も含む）は印刷しない */
+    .a4-sheet .name-frame,
+    .a4-sheet .name-frame.warn {
+      border-color: transparent;
+      background: transparent;
+      box-shadow: none;
     }
   }
 
