@@ -22,7 +22,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{}'
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: 毎月1日にリポジトリを更新（定期実行の停止防止）
         run: |
