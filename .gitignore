@@ -1,0 +1,11 @@
+# 公開リポジトリ（GitHub Pages）に載せるのは画面・設定ファイルのみ。
+# CLAUDE.md・仕様書・手書きシフト表のサンプル画像（実名入り）などは載せない。
+/*
+!/.gitignore
+!/.nojekyll
+!/index.html
+!/Circle.png
+!/Cross.png
+!/app/
+!/supabase/
+!/.github/

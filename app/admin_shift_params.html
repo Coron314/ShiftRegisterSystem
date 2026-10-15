@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>シフト希望を募集する</title>
+<style>
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    font-family: "Yu Gothic", "Meiryo", sans-serif;
+    margin: 16px;
+    font-size: 14px;
+  }
+  h1 {
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+  .controls {
+    margin-bottom: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 12px;
+  }
+  button {
+    cursor: pointer;
+    font-size: 13px;
+  }
+  #backBtn {
+    padding: 4px 10px;
+  }
+  section {
+    margin-bottom: 22px;
+  }
+  section h2 {
+    font-size: 14px;
+    margin: 0 0 8px;
+    border-left: 4px solid #1a5fb4;
+    padding-left: 8px;
+  }
+  .collapsible-heading {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  .disclosure-arrow {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0 2px;
+    line-height: 1;
+    transition: transform 0.15s;
+  }
+  .disclosure-arrow.open {
+    transform: rotate(90deg);
+  }
+  .detail-block {
+    margin-bottom: 18px;
+  }
+  .detail-block h3 {
+    font-size: 13px;
+    margin: 0 0 6px;
+    color: #333;
+  }
+  .param-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .param-row select,
+  .param-row input[type="time"] {
+    font-size: 14px;
+    padding: 4px 6px;
+  }
+  .weekday-table-scroll {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+  table.weekday-table {
+    border-collapse: collapse;
+  }
+  table.weekday-table th, table.weekday-table td {
+    border: 1px solid #999;
+    padding: 4px 8px;
+    text-align: center;
+    white-space: nowrap;
+  }
+  table.weekday-table th {
+    background: #f0f0f0;
+  }
+  table.weekday-table input[type="time"] {
+    font-size: 13px;
+    padding: 2px 4px;
+  }
+  table.weekday-table select.count-select {
+    font-size: 13px;
+    padding: 2px 4px;
+  }
+  table.weekday-table .closed-label {
+    color: #c01c28;
+    font-size: 13px;
+  }
+  table.weekday-table .row-label {
+    background: #f0f0f0;
+    font-weight: bold;
+  }
+  .closed-weekday-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .closed-weekday-row select {
+    font-size: 14px;
+    padding: 4px 6px;
+  }
+  .remove-closed-weekday-btn {
+    padding: 2px 8px;
+  }
+  #addClosedWeekdayBtn {
+    padding: 4px 10px;
+  }
+  .temp-closure-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    max-width: 420px;
+    padding: 4px 0;
+    border-bottom: 1px solid #eee;
+  }
+  .temp-closure-btn {
+    padding: 4px 10px;
+  }
+  .temp-closure-btn.is-temp {
+    background: #fde3e3;
+    border-color: #c01c28;
+  }
+  .save-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  #saveBtn {
+    padding: 8px 20px;
+    border-radius: 6px;
+    border: 1px solid #1a5fb4;
+    background: #1a5fb4;
+    color: #fff;
+    font-weight: bold;
+  }
+  .saved-note {
+    color: #1a5fb4;
+    font-size: 13px;
+  }
+  .recruit-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  #startDateBtn {
+    padding: 4px 10px;
+  }
+  #recruitWeeksSelect {
+    font-size: 14px;
+    padding: 4px 6px;
+  }
+  #recruitBtn {
+    padding: 4px 10px;
+  }
+  #recruitRestoreBtn {
+    padding: 4px 10px;
+  }
+  .hidden-date-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* --- popup (password gate) --- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .popup {
+    background: #fff;
+    border-radius: 10px;
+    padding: 20px 24px;
+    width: 340px;
+    max-width: 90vw;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .popup-header {
+    text-align: center;
+    margin-bottom: 14px;
+  }
+  .popup-header .p-date {
+    font-size: 20px;
+    font-weight: bold;
+  }
+  .popup-field {
+    margin-bottom: 10px;
+  }
+  .popup-field label {
+    display: block;
+    font-size: 12px;
+    color: #555;
+    margin-bottom: 2px;
+  }
+  .popup-field input[type="password"],
+  .popup-field input[type="text"] {
+    width: 100%;
+    font-size: 14px;
+    padding: 6px;
+    box-sizing: border-box;
+  }
+  .popup-field .error-text {
+    color: #c01c28;
+    font-size: 12px;
+    margin-top: 6px;
+    min-height: 14px;
+  }
+  .popup-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 18px;
+  }
+  .popup-footer button {
+    padding: 8px 18px;
+    font-size: 14px;
+    border-radius: 6px;
+    border: 1px solid #999;
+    background: #f5f5f5;
+  }
+  .popup-footer .confirm-btn {
+    background: #1a5fb4;
+    color: #fff;
+    border-color: #1a5fb4;
+    font-weight: bold;
+  }
+
+  #adminContent {
+    display: none;
+  }
+  .popup.popup-wide {
+    width: 440px;
+  }
+  .popup-field textarea {
+    width: 100%;
+    font-size: 14px;
+    padding: 6px;
+    box-sizing: border-box;
+    font-family: inherit;
+  }
+  .popup-field .check-label {
+    font-size: 14px;
+    color: #222;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .quota-note {
+    font-size: 12px;
+    color: #555;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<h1>シフト希望を募集する</h1>
+
+<div id="adminContent">
+  <div class="controls">
+    <button id="backBtn">← 管理ページに戻る</button>
+  </div>
+
+  <section>
+    <h2>シフト希望の募集</h2>
+    <div class="recruit-line">
+      <button type="button" id="startDateBtn"></button>
+      <input type="date" id="startDateInput" class="hidden-date-input" tabindex="-1">
+      <span>から</span>
+      <select id="recruitWeeksSelect">
+        <option value="1">1週間</option>
+        <option value="2">2週間</option>
+        <option value="3">3週間</option>
+        <option value="4">4週間</option>
+      </select>
+      <span>分のシフトを募集する</span>
+    </div>
+    <div class="save-row">
+      <button id="recruitBtn">募集する</button>
+      <button id="recruitRestoreBtn" style="display:none;">復元</button>
+      <span class="saved-note" id="recruitSavedNote" style="display:none;">反映しました</span>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="detailSettingsToggle" class="collapsible-heading">
+      <button type="button" id="detailSettingsArrow" class="disclosure-arrow">&gt;</button>
+      詳細設定
+    </h2>
+
+    <div id="detailSettingsBody" style="display:none;">
+      <div class="detail-block">
+        <h3>週の開始曜日</h3>
+        <div class="param-row">
+          <select id="weekStartWeekday"></select>
+        </div>
+      </div>
+
+      <div class="detail-block">
+        <h3>定休日</h3>
+        <div id="closedWeekdayRows"></div>
+        <button type="button" id="addClosedWeekdayBtn">+ 追加</button>
+      </div>
+
+      <div class="detail-block">
+        <h3>曜日ごとのオープン・クローズ時刻</h3>
+        <div class="weekday-table-scroll">
+          <table class="weekday-table" id="openTimeTable"></table>
+        </div>
+      </div>
+
+      <div class="detail-block">
+        <h3>曜日ごとの必要人数</h3>
+        <div class="weekday-table-scroll">
+          <table class="weekday-table" id="requiredCountTable"></table>
+        </div>
+      </div>
+
+      <div class="detail-block">
+        <h3>臨時休業の設定</h3>
+        <div id="tempClosureRows"></div>
+      </div>
+
+      <div class="save-row">
+        <button id="saveBtn">保存</button>
+        <span class="saved-note" id="savedNote" style="display:none;">保存しました</span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script>
+(async function () {
+  await ShiftDB.ready();
+  const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+
+  const DEFAULT_SHIFT_PARAMS = {
+    weekStartWeekday: 1, // 月曜日
+    defaultClosedWeekdays: [3], // 水曜日
+    openTimeByWeekday: {
+      0: "16:00", // 日
+      1: "16:00", // 月
+      2: "17:00", // 火
+      3: "16:00", // 水（既定の定休日のため通常は未使用）
+      4: "17:00", // 木
+      5: "16:00", // 金
+      6: "16:00"  // 土
+    },
+    closeTimeByWeekday: {
+      0: "23:00", // 日
+      1: "23:00", // 月
+      2: "23:00", // 火
+      3: "23:00", // 水（既定の定休日のため通常は未使用）
+      4: "23:00", // 木
+      5: "23:00", // 金
+      6: "23:00"  // 土
+    },
+    requiredCountByWeekday: {
+      kitchen: { 0: 2, 1: 2, 2: 2, 3: 2, 4: 2, 5: 2, 6: 2 },
+      hall: { 0: 3, 1: 2, 2: 2, 3: 2, 4: 2, 5: 3, 6: 3 } // 月~木=2人、金~日=3人
+    },
+    temporaryClosedDates: []
+  };
+
+  let state = loadState() || { startDate: toIsoDate(new Date()), staff: [], cells: {} };
+  if (!state.shiftParams) state.shiftParams = JSON.parse(JSON.stringify(DEFAULT_SHIFT_PARAMS));
+  if (!state.shiftParams.openTimeByWeekday) state.shiftParams.openTimeByWeekday = JSON.parse(JSON.stringify(DEFAULT_SHIFT_PARAMS.openTimeByWeekday));
+  if (!state.shiftParams.closeTimeByWeekday) state.shiftParams.closeTimeByWeekday = JSON.parse(JSON.stringify(DEFAULT_SHIFT_PARAMS.closeTimeByWeekday));
+  if (!state.shiftParams.requiredCountByWeekday) state.shiftParams.requiredCountByWeekday = JSON.parse(JSON.stringify(DEFAULT_SHIFT_PARAMS.requiredCountByWeekday));
+  if (!state.shiftParams.requiredCountByWeekday.kitchen) state.shiftParams.requiredCountByWeekday.kitchen = JSON.parse(JSON.stringify(DEFAULT_SHIFT_PARAMS.requiredCountByWeekday.kitchen));
+  if (!state.shiftParams.requiredCountByWeekday.hall) state.shiftParams.requiredCountByWeekday.hall = JSON.parse(JSON.stringify(DEFAULT_SHIFT_PARAMS.requiredCountByWeekday.hall));
+  if (state.shiftParams.weekStartWeekday === undefined) state.shiftParams.weekStartWeekday = DEFAULT_SHIFT_PARAMS.weekStartWeekday;
+  if (!state.shiftParams.defaultClosedWeekdays) {
+    if (state.shiftParams.defaultClosedWeekday !== undefined && state.shiftParams.defaultClosedWeekday !== null) {
+      state.shiftParams.defaultClosedWeekdays = [Number(state.shiftParams.defaultClosedWeekday)];
+    } else {
+      state.shiftParams.defaultClosedWeekdays = [];
+    }
+  }
+  delete state.shiftParams.defaultClosedWeekday;
+  if (!state.shiftParams.temporaryClosedDates) state.shiftParams.temporaryClosedDates = [];
+  if (!state.startDate) state.startDate = toIsoDate(new Date());
+  if (!state.recruitWeeks) state.recruitWeeks = 2;
+
+  let openTimeDraft = {};
+  let closeTimeDraft = {};
+  let kitchenCountDraft = {};
+  let hallCountDraft = {};
+
+  const adminContent = document.getElementById("adminContent");
+  const backBtn = document.getElementById("backBtn");
+  const weekStartSelect = document.getElementById("weekStartWeekday");
+  const closedWeekdayRows = document.getElementById("closedWeekdayRows");
+  const addClosedWeekdayBtn = document.getElementById("addClosedWeekdayBtn");
+  const openTimeTable = document.getElementById("openTimeTable");
+  const requiredCountTable = document.getElementById("requiredCountTable");
+  const tempClosureRows = document.getElementById("tempClosureRows");
+  const saveBtn = document.getElementById("saveBtn");
+  const savedNote = document.getElementById("savedNote");
+  const startDateBtn = document.getElementById("startDateBtn");
+  const startDateInput = document.getElementById("startDateInput");
+  const recruitWeeksSelect = document.getElementById("recruitWeeksSelect");
+  const recruitBtn = document.getElementById("recruitBtn");
+  const recruitRestoreBtn = document.getElementById("recruitRestoreBtn");
+  const recruitSavedNote = document.getElementById("recruitSavedNote");
+
+  backBtn.addEventListener("click", () => {
+    ShiftDB.go("admin.html");
+  });
+
+  const detailSettingsToggle = document.getElementById("detailSettingsToggle");
+  const detailSettingsArrow = document.getElementById("detailSettingsArrow");
+  const detailSettingsBody = document.getElementById("detailSettingsBody");
+
+  detailSettingsToggle.addEventListener("click", () => {
+    const isOpen = detailSettingsBody.style.display !== "none";
+    detailSettingsBody.style.display = isOpen ? "none" : "block";
+    detailSettingsArrow.classList.toggle("open", !isOpen);
+  });
+
+  startDateBtn.addEventListener("click", () => {
+    if (typeof startDateInput.showPicker === "function") {
+      startDateInput.showPicker();
+    } else {
+      startDateInput.focus();
+      startDateInput.click();
+    }
+  });
+
+  startDateInput.addEventListener("change", () => {
+    if (startDateInput.value) {
+      startDateBtn.textContent = formatDateForButton(startDateInput.value);
+    }
+    clearTemporaryClosuresForNewPeriod();
+  });
+
+  recruitWeeksSelect.addEventListener("change", () => {
+    clearTemporaryClosuresForNewPeriod();
+  });
+
+  function clearTemporaryClosuresForNewPeriod() {
+    state.shiftParams.temporaryClosedDates = [];
+    saveState();
+    renderTempClosureList();
+  }
+
+  recruitBtn.addEventListener("click", () => {
+    if (!startDateInput.value) return;
+    openRecruitConfirm();
+  });
+
+  function openRecruitConfirm() {
+    const newStart = startDateInput.value;
+    const newWeeks = Number(recruitWeeksSelect.value);
+    const overlay = document.createElement("div");
+    overlay.className = "overlay";
+    overlay.innerHTML = `
+      <div class="popup popup-wide">
+        <div class="popup-header">
+          <div class="p-date">本当に募集しますか？</div>
+        </div>
+        <div class="popup-field">
+          <label class="check-label"><input type="checkbox" id="recruitNotify" checked> 公式LINEで募集を通知する</label>
+        </div>
+        <div class="popup-field" id="recruitMessageField">
+          <label for="recruitMessage">通知の文章（最後に入力画面へのリンクが自動で付きます）</label>
+          <textarea id="recruitMessage" rows="5"></textarea>
+          <div class="quota-note" id="recruitQuota">今月の送信数を確認中…</div>
+        </div>
+        <div class="popup-field"><div class="error-text" id="recruitError"></div></div>
+        <div class="popup-footer">
+          <button class="cancel-btn">いいえ</button>
+          <button class="confirm-btn">はい</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const notifyCheck = overlay.querySelector("#recruitNotify");
+    const messageField = overlay.querySelector("#recruitMessageField");
+    const messageInput = overlay.querySelector("#recruitMessage");
+    const quotaNote = overlay.querySelector("#recruitQuota");
+    const errorText = overlay.querySelector("#recruitError");
+    const cancelBtn = overlay.querySelector(".cancel-btn");
+    const confirmBtn = overlay.querySelector(".confirm-btn");
+
+    messageInput.value = defaultRecruitMessage(newStart, newWeeks);
+    notifyCheck.addEventListener("change", () => {
+      messageField.style.display = notifyCheck.checked ? "block" : "none";
+    });
+    showQuota(quotaNote);
+
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay && !confirmBtn.disabled) overlay.remove();
+    });
+    cancelBtn.addEventListener("click", () => overlay.remove());
+    confirmBtn.addEventListener("click", async () => {
+      const notify = notifyCheck.checked;
+      const message = messageInput.value.trim();
+      if (notify && !window.SHIFT_CONFIG.LIFF_ID) {
+        errorText.textContent = "入力画面（LIFF）が未設定のため通知できません。チェックを外して募集してください。";
+        return;
+      }
+      if (notify && !message) {
+        errorText.textContent = "通知の文章を入力してください。";
+        return;
+      }
+      confirmBtn.disabled = true;
+      cancelBtn.disabled = true;
+      errorText.textContent = "";
+
+      state.prevRound = {
+        startDate: state.startDate,
+        recruitWeeks: state.recruitWeeks,
+        cells: state.cells,
+        temporaryClosedDates: state.shiftParams.temporaryClosedDates
+      };
+      state.cells = {};
+      state.startDate = newStart;
+      state.recruitWeeks = newWeeks;
+      saveState();
+      updateRestoreButtonVisibility();
+      renderTempClosureList();
+
+      // 募集内容が保存されてから通知する（通知を見たメンバーがすぐ開いても新しい期間が出るように）
+      const saved = await ShiftDB.flush();
+      if (!saved) {
+        showRecruitResult("募集の保存に失敗しました。通信状態を確認して、もう一度「募集する」を押してください。");
+        return;
+      }
+      if (notify) {
+        try {
+          const liffUrl = "https://liff.line.me/" + window.SHIFT_CONFIG.LIFF_ID;
+          await ShiftDB.callFunction("line-send", { action: "recruit", text: message + "\n" + liffUrl });
+        } catch (e) {
+          showRecruitResult("募集は反映しましたが、LINEの通知に失敗しました：" + e.message);
+          return;
+        }
+      }
+      overlay.remove();
+      recruitSavedNote.textContent = notify ? "反映し、LINEで通知しました" : "反映しました";
+      recruitSavedNote.style.display = "inline";
+      setTimeout(() => { recruitSavedNote.style.display = "none"; }, 3000);
+    });
+
+    function showRecruitResult(text) {
+      errorText.textContent = text;
+      cancelBtn.style.display = "none";
+      // 募集の処理が二重に走らないよう、「はい」ボタンを「閉じる」だけのボタンに差し替える
+      const closeBtn = confirmBtn.cloneNode(false);
+      closeBtn.textContent = "閉じる";
+      closeBtn.disabled = false;
+      closeBtn.addEventListener("click", () => overlay.remove());
+      confirmBtn.replaceWith(closeBtn);
+    }
+  }
+
+  function defaultRecruitMessage(startIso, weeks) {
+    const start = new Date(startIso + "T00:00:00");
+    const end = new Date(start);
+    end.setDate(start.getDate() + weeks * 7 - 1);
+    const fmt = (d) => `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAY_LABELS[d.getDay()]})`;
+    return `【シフト希望の募集】
+${fmt(start)}〜${fmt(end)}のシフト希望を募集します。
+○月○日までに、下のリンクから登録してください。`;
+  }
+
+  async function showQuota(el) {
+    try {
+      const q = await ShiftDB.callFunction("line-send", { action: "quota" });
+      let text = q.limit === null ? `今月の送信数：${q.used}通` : `今月の送信数：${q.used} / ${q.limit}通`;
+      if (q.recipients !== null) text += `（1回の通知で約${q.recipients}通使います）`;
+      el.textContent = text;
+    } catch (e) {
+      el.textContent = "今月の送信数を確認できませんでした（" + e.message + "）";
+    }
+  }
+
+  recruitRestoreBtn.addEventListener("click", () => {
+    if (!state.prevRound) return;
+    openRestoreConfirm();
+  });
+
+  function openRestoreConfirm() {
+    const overlay = document.createElement("div");
+    overlay.className = "overlay";
+    overlay.innerHTML = `
+      <div class="popup">
+        <div class="popup-header">
+          <div class="p-date">一つ前のシフト希望に戻しますか？</div>
+        </div>
+        <div class="popup-footer">
+          <button class="cancel-btn">いいえ</button>
+          <button class="confirm-btn">はい</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+
+    overlay.querySelector(".cancel-btn").addEventListener("click", () => overlay.remove());
+    overlay.querySelector(".confirm-btn").addEventListener("click", () => {
+      state.startDate = state.prevRound.startDate;
+      state.recruitWeeks = state.prevRound.recruitWeeks;
+      state.cells = state.prevRound.cells;
+      state.shiftParams.temporaryClosedDates = state.prevRound.temporaryClosedDates || [];
+      state.prevRound = null;
+      saveState();
+      overlay.remove();
+      updateRestoreButtonVisibility();
+      startDateInput.value = state.startDate;
+      startDateBtn.textContent = formatDateForButton(state.startDate);
+      recruitWeeksSelect.value = String(state.recruitWeeks);
+      renderTempClosureList();
+      recruitSavedNote.style.display = "inline";
+      setTimeout(() => { recruitSavedNote.style.display = "none"; }, 2000);
+    });
+  }
+
+  function updateRestoreButtonVisibility() {
+    recruitRestoreBtn.style.display = state.prevRound ? "inline" : "none";
+  }
+
+  addClosedWeekdayBtn.addEventListener("click", () => {
+    closedWeekdayRows.insertAdjacentHTML("beforeend", buildClosedWeekdayRowHtml(0));
+    onClosedWeekdaysChanged();
+  });
+
+  closedWeekdayRows.addEventListener("click", (e) => {
+    if (e.target.classList.contains("remove-closed-weekday-btn")) {
+      e.target.closest(".closed-weekday-row").remove();
+      onClosedWeekdaysChanged();
+    }
+  });
+
+  closedWeekdayRows.addEventListener("change", (e) => {
+    if (e.target.classList.contains("closed-weekday-select")) {
+      onClosedWeekdaysChanged();
+    }
+  });
+
+  function buildClosedWeekdayRowHtml(selectedWeekday) {
+    const options = WEEKDAY_LABELS.map((label, idx) =>
+      `<option value="${idx}" ${idx === selectedWeekday ? "selected" : ""}>${label}曜日</option>`
+    ).join("");
+    return `<div class="closed-weekday-row">
+      <select class="closed-weekday-select">${options}</select>
+      <button type="button" class="remove-closed-weekday-btn">×</button>
+    </div>`;
+  }
+
+  function getClosedWeekdaySet() {
+    const set = new Set();
+    closedWeekdayRows.querySelectorAll(".closed-weekday-select").forEach(sel => set.add(Number(sel.value)));
+    return set;
+  }
+
+  function onClosedWeekdaysChanged() {
+    syncTimeDraftsFromInputs();
+    renderOpenTimeTable();
+    syncCountDraftsFromInputs();
+    renderRequiredCountTable();
+  }
+
+  function syncTimeDraftsFromInputs() {
+    openTimeTable.querySelectorAll('input[type=time][data-kind="open"]').forEach(input => {
+      openTimeDraft[input.dataset.weekday] = input.value;
+    });
+    openTimeTable.querySelectorAll('input[type=time][data-kind="close"]').forEach(input => {
+      closeTimeDraft[input.dataset.weekday] = input.value;
+    });
+  }
+
+  function syncCountDraftsFromInputs() {
+    requiredCountTable.querySelectorAll('select.count-select[data-kind="kitchen"]').forEach(sel => {
+      kitchenCountDraft[sel.dataset.weekday] = Number(sel.value);
+    });
+    requiredCountTable.querySelectorAll('select.count-select[data-kind="hall"]').forEach(sel => {
+      hallCountDraft[sel.dataset.weekday] = Number(sel.value);
+    });
+  }
+
+  function buildCountSelectHtml(kind, weekday, value) {
+    const options = [1, 2, 3, 4, 5, 6].map(n =>
+      `<option value="${n}" ${n === value ? "selected" : ""}>${n}</option>`
+    ).join("");
+    return `<select class="count-select" data-kind="${kind}" data-weekday="${weekday}">${options}</select>`;
+  }
+
+  function renderRequiredCountTable() {
+    const closedSet = getClosedWeekdaySet();
+    let html = "<tr><th></th>" + WEEKDAY_LABELS.map(l => `<th>${l}</th>`).join("") + "</tr>";
+
+    html += `<tr><th class="row-label">厨房</th>`;
+    for (let wd = 0; wd < 7; wd++) {
+      if (closedSet.has(wd)) {
+        html += `<td><span class="closed-label">定休日</span></td>`;
+      } else {
+        html += `<td>${buildCountSelectHtml("kitchen", wd, kitchenCountDraft[wd] || 2)}</td>`;
+      }
+    }
+    html += "</tr>";
+
+    html += `<tr><th class="row-label">ホール</th>`;
+    for (let wd = 0; wd < 7; wd++) {
+      if (closedSet.has(wd)) {
+        html += `<td><span class="closed-label">定休日</span></td>`;
+      } else {
+        html += `<td>${buildCountSelectHtml("hall", wd, hallCountDraft[wd] || DEFAULT_SHIFT_PARAMS.requiredCountByWeekday.hall[wd])}</td>`;
+      }
+    }
+    html += "</tr>";
+
+    requiredCountTable.innerHTML = html;
+  }
+
+  function renderOpenTimeTable() {
+    const closedSet = getClosedWeekdaySet();
+    let html = "<tr><th></th>" + WEEKDAY_LABELS.map(l => `<th>${l}</th>`).join("") + "</tr>";
+
+    html += `<tr><th class="row-label">オープン</th>`;
+    for (let wd = 0; wd < 7; wd++) {
+      if (closedSet.has(wd)) {
+        html += `<td><span class="closed-label">定休日</span></td>`;
+      } else {
+        const val = openTimeDraft[wd] || "";
+        html += `<td><input type="time" data-kind="open" data-weekday="${wd}" value="${val}"></td>`;
+      }
+    }
+    html += "</tr>";
+
+    html += `<tr><th class="row-label">クローズ</th>`;
+    for (let wd = 0; wd < 7; wd++) {
+      if (closedSet.has(wd)) {
+        html += `<td><span class="closed-label">定休日</span></td>`;
+      } else {
+        const val = closeTimeDraft[wd] || "";
+        html += `<td><input type="time" data-kind="close" data-weekday="${wd}" value="${val}"></td>`;
+      }
+    }
+    html += "</tr>";
+
+    openTimeTable.innerHTML = html;
+  }
+
+  function renderTempClosureList() {
+    const baseStart = startDateInput.value || state.startDate;
+    const baseWeeks = Number(recruitWeeksSelect.value) || state.recruitWeeks || 2;
+    const dates = getDateRange(baseStart, baseWeeks * 7);
+    tempClosureRows.innerHTML = dates.map(d => {
+      const iso = toIsoDate(d);
+      const isTemp = state.shiftParams.temporaryClosedDates.includes(iso);
+      return `<div class="temp-closure-row">
+        <span>${formatMonthDay(d)} (${WEEKDAY_LABELS[d.getDay()]})</span>
+        <button type="button" class="temp-closure-btn ${isTemp ? "is-temp" : ""}" data-date="${iso}">${isTemp ? "この日の臨時休業を取り消す" : "この日を臨時休業にする"}</button>
+      </div>`;
+    }).join("");
+
+    tempClosureRows.querySelectorAll(".temp-closure-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const iso = btn.dataset.date;
+        const idx = state.shiftParams.temporaryClosedDates.indexOf(iso);
+        if (idx === -1) state.shiftParams.temporaryClosedDates.push(iso);
+        else state.shiftParams.temporaryClosedDates.splice(idx, 1);
+        saveState();
+        renderTempClosureList();
+      });
+    });
+  }
+
+  saveBtn.addEventListener("click", () => {
+    state.shiftParams.weekStartWeekday = Number(weekStartSelect.value);
+    syncTimeDraftsFromInputs();
+    syncCountDraftsFromInputs();
+    state.shiftParams.defaultClosedWeekdays = Array.from(getClosedWeekdaySet()).sort((a, b) => a - b);
+    state.shiftParams.openTimeByWeekday = openTimeDraft;
+    state.shiftParams.closeTimeByWeekday = closeTimeDraft;
+    state.shiftParams.requiredCountByWeekday = { kitchen: kitchenCountDraft, hall: hallCountDraft };
+
+    saveState();
+    savedNote.style.display = "inline";
+    setTimeout(() => { savedNote.style.display = "none"; }, 2000);
+  });
+
+  showAdminContent();
+
+  function showAdminContent() {
+    adminContent.style.display = "block";
+    renderForm();
+  }
+
+  function renderForm() {
+    const defaultStart = nextMondayIso();
+    startDateInput.value = defaultStart;
+    startDateBtn.textContent = formatDateForButton(defaultStart);
+    recruitWeeksSelect.value = String(state.recruitWeeks);
+    updateRestoreButtonVisibility();
+
+    weekStartSelect.innerHTML = WEEKDAY_LABELS.map((label, idx) =>
+      `<option value="${idx}" ${idx === state.shiftParams.weekStartWeekday ? "selected" : ""}>${label}曜日</option>`
+    ).join("");
+
+    closedWeekdayRows.innerHTML = state.shiftParams.defaultClosedWeekdays.map(buildClosedWeekdayRowHtml).join("");
+
+    openTimeDraft = JSON.parse(JSON.stringify(state.shiftParams.openTimeByWeekday));
+    closeTimeDraft = JSON.parse(JSON.stringify(state.shiftParams.closeTimeByWeekday));
+    renderOpenTimeTable();
+
+    kitchenCountDraft = JSON.parse(JSON.stringify(state.shiftParams.requiredCountByWeekday.kitchen));
+    hallCountDraft = JSON.parse(JSON.stringify(state.shiftParams.requiredCountByWeekday.hall));
+    renderRequiredCountTable();
+
+    renderTempClosureList();
+  }
+
+  function getDateRange(startIso, count) {
+    const result = [];
+    const base = new Date(startIso + "T00:00:00");
+    for (let i = 0; i < count; i++) {
+      const d = new Date(base);
+      d.setDate(base.getDate() + i);
+      result.push(d);
+    }
+    return result;
+  }
+
+  function formatMonthDay(d) {
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  }
+
+  function formatDateForButton(iso) {
+    if (!iso) return "開始日を選択";
+    const d = new Date(iso + "T00:00:00");
+    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} (${WEEKDAY_LABELS[d.getDay()]})`;
+  }
+
+  function saveState() {
+    ShiftDB.save(state);
+  }
+
+  function loadState() {
+    return ShiftDB.loaded();
+  }
+
+  function toIsoDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function nextMondayIso() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffToThisWeekMonday = (today.getDay() + 6) % 7; // 0=今日が月曜
+    const thisWeekMonday = new Date(today);
+    thisWeekMonday.setDate(today.getDate() - diffToThisWeekMonday);
+    const nextWeekMonday = new Date(thisWeekMonday);
+    nextWeekMonday.setDate(thisWeekMonday.getDate() + 7);
+    return toIsoDate(nextWeekMonday);
+  }
+})();
+</script>
+
+</body>
+</html>

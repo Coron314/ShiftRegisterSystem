@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>スタッフ登録・削除</title>
+<style>
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    font-family: "Yu Gothic", "Meiryo", sans-serif;
+    margin: 16px;
+    font-size: 14px;
+  }
+  h1 {
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+  .controls {
+    margin-bottom: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 12px;
+  }
+  button {
+    cursor: pointer;
+    font-size: 13px;
+  }
+  #backBtn, #addStaffBtn {
+    padding: 4px 10px;
+  }
+  #staffTableWrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+  table {
+    border-collapse: collapse;
+    width: 30%;
+  }
+  th, td {
+    border: 1px solid #999;
+    padding: 4px 8px;
+    text-align: left;
+  }
+  th {
+    background: #f0f0f0;
+  }
+  .name-cell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .name-cell input[type="text"] {
+    width: 100%;
+    min-width: 70px;
+    font-size: 14px;
+    padding: 4px;
+  }
+  .name-cell .last-name-input {
+    flex: 1;
+  }
+  .name-cell .first-name-input {
+    flex: 1;
+  }
+  .del-row-btn {
+    border: none;
+    background: none;
+    color: #999;
+    font-size: 16px;
+    padding: 0 2px;
+    flex-shrink: 0;
+  }
+  .del-row-btn:hover {
+    color: #c01c28;
+  }
+  .attr-select {
+    width: 100%;
+    min-width: 110px;
+    font-size: 14px;
+    padding: 4px;
+  }
+  .empty-note {
+    color: #999;
+    font-size: 13px;
+  }
+  .drag-handle {
+    cursor: grab;
+    color: #999;
+    font-size: 16px;
+    padding: 0 6px;
+    user-select: none;
+  }
+  tr.staff-row {
+    cursor: default;
+  }
+  tr.staff-row.dragging {
+    opacity: 0.4;
+  }
+  tr.staff-row.drag-over {
+    box-shadow: inset 0 2px 0 #1a5fb4;
+  }
+
+  /* --- popup (password gate) --- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .popup {
+    background: #fff;
+    border-radius: 10px;
+    padding: 20px 24px;
+    width: 340px;
+    max-width: 90vw;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .popup-header {
+    text-align: center;
+    margin-bottom: 14px;
+  }
+  .popup-header .p-date {
+    font-size: 20px;
+    font-weight: bold;
+  }
+  .popup-field {
+    margin-bottom: 10px;
+  }
+  .popup-field label {
+    display: block;
+    font-size: 12px;
+    color: #555;
+    margin-bottom: 2px;
+  }
+  .popup-field input[type="password"],
+  .popup-field input[type="text"] {
+    width: 100%;
+    font-size: 14px;
+    padding: 6px;
+    box-sizing: border-box;
+  }
+  .popup-field .error-text {
+    color: #c01c28;
+    font-size: 12px;
+    margin-top: 6px;
+    min-height: 14px;
+  }
+  .popup-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 18px;
+  }
+  .popup-footer button {
+    padding: 8px 18px;
+    font-size: 14px;
+    border-radius: 6px;
+    border: 1px solid #999;
+    background: #f5f5f5;
+  }
+  .popup-footer .confirm-btn {
+    background: #1a5fb4;
+    color: #fff;
+    border-color: #1a5fb4;
+    font-weight: bold;
+  }
+
+  #adminContent {
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<h1>スタッフ登録・削除</h1>
+
+<div id="adminContent">
+  <div class="controls">
+    <button id="backBtn">← 管理ページに戻る</button>
+    <button id="addStaffBtn">＋ スタッフを追加</button>
+  </div>
+
+  <div id="staffTableWrap"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script>
+(async function () {
+  await ShiftDB.ready();
+  const ATTRIBUTES = ["指定なし", "厨房専門", "ホール専門", "厨房優先", "ホール優先", "ヘルプ", "研修", "料理長"];
+  const DEFAULT_ATTRIBUTE = "指定なし";
+
+  let state = loadState() || { startDate: toIsoDate(new Date()), staff: [], cells: {} };
+  migrateStaffNames();
+
+  const adminContent = document.getElementById("adminContent");
+  const backBtn = document.getElementById("backBtn");
+  const addStaffBtn = document.getElementById("addStaffBtn");
+  const staffTableWrap = document.getElementById("staffTableWrap");
+
+  backBtn.addEventListener("click", () => {
+    ShiftDB.go("admin.html");
+  });
+
+  addStaffBtn.addEventListener("click", () => {
+    state.staff.push({ id: cryptoId(), lastName: "", firstName: "", name: "", attribute: DEFAULT_ATTRIBUTE });
+    saveState();
+    renderStaffTable();
+  });
+
+  showAdminContent();
+
+  function showAdminContent() {
+    adminContent.style.display = "block";
+    renderStaffTable();
+  }
+
+  function renderStaffTable() {
+    if (state.staff.length === 0) {
+      staffTableWrap.innerHTML = `<p class="empty-note">スタッフが登録されていません。「＋ スタッフを追加」で追加してください。</p>`;
+      return;
+    }
+
+    let html = "<table><thead><tr><th></th><th>姓</th><th>名</th><th>属性</th></tr></thead><tbody>";
+    for (const person of state.staff) {
+      const attribute = person.attribute || DEFAULT_ATTRIBUTE;
+      html += `<tr class="staff-row" draggable="true" data-staff-row="${person.id}">` +
+        `<td><span class="drag-handle" title="ドラッグして並び替え">&#8942;&#8942;</span></td>` +
+        `<td><div class="name-cell">` +
+        `<button class="del-row-btn" data-del="${person.id}" title="このスタッフを削除">×</button>` +
+        `<input type="text" class="last-name-input" data-staff-last="${person.id}" value="${escapeHtml(person.lastName || "")}" placeholder="姓">` +
+        `</div></td>` +
+        `<td><input type="text" class="first-name-input" data-staff-first="${person.id}" value="${escapeHtml(person.firstName || "")}" placeholder="名"></td>` +
+        `<td><select class="attr-select" data-staff-attr="${person.id}">${buildAttributeOptions(attribute)}</select></td></tr>`;
+    }
+    html += "</tbody></table>";
+
+    staffTableWrap.innerHTML = html;
+    bindStaffTableEvents();
+  }
+
+  function buildAttributeOptions(currentValue) {
+    return ATTRIBUTES.map(attr => {
+      const selected = attr === currentValue ? "selected" : "";
+      return `<option value="${escapeHtml(attr)}" ${selected}>${escapeHtml(attr)}</option>`;
+    }).join("");
+  }
+
+  function bindStaffTableEvents() {
+    staffTableWrap.querySelectorAll(".last-name-input").forEach(input => {
+      input.addEventListener("change", () => {
+        const person = state.staff.find(p => p.id === input.dataset.staffLast);
+        if (person) {
+          person.lastName = input.value;
+          person.name = combineName(person.lastName, person.firstName);
+          saveState();
+        }
+      });
+    });
+
+    staffTableWrap.querySelectorAll(".first-name-input").forEach(input => {
+      input.addEventListener("change", () => {
+        const person = state.staff.find(p => p.id === input.dataset.staffFirst);
+        if (person) {
+          person.firstName = input.value;
+          person.name = combineName(person.lastName, person.firstName);
+          saveState();
+        }
+      });
+    });
+
+    staffTableWrap.querySelectorAll(".attr-select").forEach(select => {
+      select.addEventListener("change", () => {
+        const person = state.staff.find(p => p.id === select.dataset.staffAttr);
+        if (person) {
+          person.attribute = select.value;
+          saveState();
+        }
+      });
+    });
+
+    staffTableWrap.querySelectorAll(".del-row-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.del;
+        if (!confirm("このスタッフを削除しますか？登録済みのシフト希望も削除されます。")) return;
+        state.staff = state.staff.filter(p => p.id !== id);
+        for (const key of Object.keys(state.cells)) {
+          if (key.startsWith(id + "_")) delete state.cells[key];
+        }
+        saveState();
+        renderStaffTable();
+      });
+    });
+
+    bindDragAndDrop();
+  }
+
+  function bindDragAndDrop() {
+    let draggedId = null;
+
+    const rows = staffTableWrap.querySelectorAll(".staff-row");
+    rows.forEach(row => {
+      row.addEventListener("dragstart", () => {
+        draggedId = row.dataset.staffRow;
+        row.classList.add("dragging");
+      });
+
+      row.addEventListener("dragend", () => {
+        row.classList.remove("dragging");
+        rows.forEach(r => r.classList.remove("drag-over"));
+      });
+
+      row.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        if (row.dataset.staffRow !== draggedId) {
+          row.classList.add("drag-over");
+        }
+      });
+
+      row.addEventListener("dragleave", () => {
+        row.classList.remove("drag-over");
+      });
+
+      row.addEventListener("drop", (e) => {
+        e.preventDefault();
+        row.classList.remove("drag-over");
+        const targetId = row.dataset.staffRow;
+        if (!draggedId || draggedId === targetId) return;
+
+        const fromIndex = state.staff.findIndex(p => p.id === draggedId);
+        const toIndex = state.staff.findIndex(p => p.id === targetId);
+        if (fromIndex === -1 || toIndex === -1) return;
+
+        const [moved] = state.staff.splice(fromIndex, 1);
+        state.staff.splice(toIndex, 0, moved);
+
+        saveState();
+        renderStaffTable();
+      });
+    });
+  }
+
+  function saveState() {
+    ShiftDB.save(state);
+  }
+
+  function loadState() {
+    return ShiftDB.loaded();
+  }
+
+  function toIsoDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function cryptoId() {
+    return Math.random().toString(36).slice(2, 10);
+  }
+
+  function combineName(lastName, firstName) {
+    return [lastName || "", firstName || ""].filter(s => s.trim() !== "").join(" ");
+  }
+
+  function migrateStaffNames() {
+    let changed = false;
+    for (const person of state.staff) {
+      if (person.lastName === undefined || person.firstName === undefined) {
+        person.lastName = person.lastName || person.name || "";
+        person.firstName = person.firstName || "";
+        person.name = combineName(person.lastName, person.firstName);
+        changed = true;
+      }
+    }
+    if (changed) saveState();
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+})();
+</script>
+
+</body>
+</html>

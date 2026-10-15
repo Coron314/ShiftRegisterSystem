@@ -1,0 +1,36 @@
+# Supabase の無料プランは1週間アクセスが少ないとプロジェクトが一時停止されるため、
+# 3日おきにデータベースへ軽いアクセス（ping関数の呼び出し）を行う。
+# また、公開リポジトリは60日間更新が無いと定期実行が止まるため、毎月1日に記録用ファイルを更新する。
+name: keepalive
+
+on:
+  schedule:
+    - cron: "0 0 */3 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Supabase にアクセス
+        run: |
+          curl -sS -f -X POST "https://ngkneoxpjsbjrrirxoiw.supabase.co/rest/v1/rpc/ping" \
+            -H "apikey: sb_publishable_T_JGnd3O35umMNUKXFCmFg_homlI_2E" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+
+      - uses: actions/checkout@v4
+
+      - name: 毎月1日にリポジトリを更新（定期実行の停止防止）
+        run: |
+          if [ "$(date -u +%d)" = "01" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            date -u > .github/keepalive.txt
+            git add .github/keepalive.txt
+            git commit -m "keepalive"
+            git push
+          fi

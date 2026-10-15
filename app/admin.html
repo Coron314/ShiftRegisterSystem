@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>管理ページ</title>
+<style>
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    font-family: "Yu Gothic", "Meiryo", sans-serif;
+    margin: 16px;
+    font-size: 14px;
+  }
+  h1 {
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+  .controls {
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  button {
+    cursor: pointer;
+    font-size: 13px;
+  }
+  #backBtn, #logoutBtn {
+    padding: 4px 10px;
+  }
+  .menu-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 320px;
+    width: 100%;
+  }
+  .menu-btn {
+    text-align: left;
+    padding: 14px 16px;
+    font-size: 14px;
+    border: 1px solid #999;
+    border-radius: 8px;
+    background: #f5f5f5;
+    width: 100%;
+  }
+  .menu-btn:hover {
+    background: #eaeaea;
+  }
+
+  /* --- popup (password gate) --- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .popup {
+    background: #fff;
+    border-radius: 10px;
+    padding: 20px 24px;
+    width: 340px;
+    max-width: 90vw;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .popup-header {
+    text-align: center;
+    margin-bottom: 14px;
+  }
+  .popup-header .p-date {
+    font-size: 20px;
+    font-weight: bold;
+  }
+  .popup-field {
+    margin-bottom: 10px;
+  }
+  .popup-field label {
+    display: block;
+    font-size: 12px;
+    color: #555;
+    margin-bottom: 2px;
+  }
+  .popup-field input[type="password"],
+  .popup-field input[type="text"] {
+    width: 100%;
+    font-size: 14px;
+    padding: 6px;
+    box-sizing: border-box;
+  }
+  .popup-field .error-text {
+    color: #c01c28;
+    font-size: 12px;
+    margin-top: 6px;
+    min-height: 14px;
+  }
+  .popup-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 18px;
+  }
+  .popup-footer button {
+    padding: 8px 18px;
+    font-size: 14px;
+    border-radius: 6px;
+    border: 1px solid #999;
+    background: #f5f5f5;
+  }
+  .popup-footer .confirm-btn {
+    background: #1a5fb4;
+    color: #fff;
+    border-color: #1a5fb4;
+    font-weight: bold;
+  }
+
+  #adminContent {
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<h1>管理ページ</h1>
+
+<div id="adminContent">
+  <div class="controls">
+    <button id="backBtn">← シフト希望登録に戻る</button>
+  </div>
+
+  <div class="menu-list">
+    <button class="menu-btn" id="staffMenuBtn">スタッフ登録・削除</button>
+    <button class="menu-btn" id="shiftParamsMenuBtn">シフト希望を募集する</button>
+  </div>
+
+  <div class="controls" style="margin-top: 32px;">
+    <button id="logoutBtn">ログアウト</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script>
+(async function () {
+  await ShiftDB.ready();
+
+  const adminContent = document.getElementById("adminContent");
+  const backBtn = document.getElementById("backBtn");
+  const staffMenuBtn = document.getElementById("staffMenuBtn");
+  const shiftParamsMenuBtn = document.getElementById("shiftParamsMenuBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+
+  backBtn.addEventListener("click", () => {
+    ShiftDB.go("shift_availability.html");
+  });
+
+  staffMenuBtn.addEventListener("click", () => {
+    ShiftDB.go("admin_staff.html");
+  });
+
+  shiftParamsMenuBtn.addEventListener("click", () => {
+    ShiftDB.go("admin_shift_params.html");
+  });
+
+  logoutBtn.addEventListener("click", () => {
+    if (confirm("ログアウトしますか？")) ShiftDB.signOut();
+  });
+
+  adminContent.style.display = "block";
+})();
+</script>
+
+</body>
+</html>

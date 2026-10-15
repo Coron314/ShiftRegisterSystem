@@ -1,0 +1,2721 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>自動シフト作成</title>
+<style>
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    font-family: "Yu Gothic", "Meiryo", sans-serif;
+    margin: 16px;
+    font-size: 14px;
+  }
+  h1 {
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+  .controls {
+    margin-bottom: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 12px;
+  }
+  button {
+    cursor: pointer;
+    font-size: 13px;
+  }
+  #backBtn, #regenerateBtn, #printBtn, #sendBtn {
+    padding: 4px 10px;
+  }
+  #regenerateBtn {
+    background: #1a5fb4;
+    color: #fff;
+    border-color: #1a5fb4;
+    font-weight: bold;
+  }
+  .empty-note {
+    color: #999;
+    font-size: 13px;
+  }
+
+  /* --- A4一週間分シート。2枚横並び（スマホは縦並びで画面いっぱい） --- */
+  .sheets-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  .a4-sheet {
+    background: #fff;
+    border: 1px solid #333;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.15);
+    padding: 10px 10px 12px;
+    width: 560px;
+    max-width: 100%;
+    aspect-ratio: 210 / 297;
+    display: flex;
+    flex-direction: column;
+    overflow: visible;   /* 幅が狭い画面でも中身を切らず、A4比率より内容が高ければシートが縦に伸びる */
+  }
+  .sheet-title-box {
+    align-self: center;
+    border: 2px solid #333;
+    border-radius: 4px;
+    padding: 3px 26px;
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 6px;
+    margin-bottom: 8px;
+  }
+  .sheet-range {
+    text-align: center;
+    font-size: 11px;
+    color: #555;
+    margin-bottom: 6px;
+  }
+  .a4-sheet table {
+    border-collapse: collapse;
+    table-layout: fixed;
+    width: 100%;
+    flex: 0 0 auto;   /* 表はシートいっぱいに伸ばさず、余った高さは下の余白にする */
+  }
+  .a4-sheet th, .a4-sheet td {
+    border: 1px solid #555;
+    padding: 2px 2px;
+    text-align: center;
+    vertical-align: middle;
+    overflow: hidden;
+  }
+  .a4-sheet thead th {
+    background: #f0f0f0;
+    font-size: 12px;
+  }
+  /* 役割列は縦書き「厨房」がちょうど収まる幅に固定し、残りの幅は曜日の列で均等に分け合う（table-layout: fixedは1行目の幅指定で列幅が決まる） */
+  .a4-sheet thead th.role-col {
+    width: 30px;
+    padding: 2px 1px;
+  }
+  .a4-sheet th.sat { color: #1a5fb4; }
+  .a4-sheet th.sun { color: #c01c28; }
+  .a4-sheet .role-label {
+    background: #e8e8e8;
+    font-weight: bold;
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    letter-spacing: 2px;
+    white-space: nowrap;
+    width: 26px;
+  }
+  /* 料理長・ラスト行は営業/定休日行と同じ薄さにするため、縦書きをやめて横書きの小さい文字にする */
+  .a4-sheet .role-label.role-label-flat {
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    letter-spacing: 0;
+    font-size: 9px;
+    padding: 1px 2px;
+  }
+  /* ラストは縦書き。2行分（薄い行）の高さに収まるよう文字を小さく・字間なしにする */
+  .a4-sheet .role-label.role-label-last {
+    font-size: 9px;
+    letter-spacing: 0;
+    padding: 1px;
+  }
+  /* 仕込み行を半分の高さにするため、縦書きラベルの文字サイズ・字間を縮める */
+  .a4-sheet .role-label.role-label-prep {
+    font-size: 7px;
+    letter-spacing: 0;
+    padding: 1px;
+  }
+  .a4-sheet .biz-row th {
+    font-size: 10px;
+    font-weight: normal;
+    padding: 1px 2px;
+  }
+  .a4-sheet .biz-toggle {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 10px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    width: 100%;
+  }
+  .a4-sheet .biz-toggle.open-day {
+    color: #1a5fb4;
+  }
+  .a4-sheet .biz-toggle.closed-day {
+    color: #c01c28;
+    font-weight: bold;
+  }
+  .a4-sheet .biz-toggle:disabled {
+    cursor: default;
+  }
+  .a4-sheet .assign-cell {
+    font-size: 11px;
+    line-height: 1.25;
+    padding: 1px 1px;
+  }
+  /* 厨房・ホールの各枠に同じ最低高さを与え、空の枠が潰れて他の枠が引き伸ばされないようにする
+     （表の余白は内容の高さに比例して配分されるため、全枠の最低高さを揃えて等分にする） */
+  .a4-sheet .assign-cell.role-slot {
+    height: 43.25px;        /* 名前の枠（氏名＋時刻）の高さ。上下3pxのパディングを足して1行の高さになる */
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
+  /* 厨房・ホール各ブロックの一番下のマス：氏名は上、シフト追加の「＋」ボタンはマスの最下端から5px上に固定する。
+     ボタンの位置は人数に関係なくどのマスでも同じ（枠と重ならないよう、下にボタン分の余白を確保する） */
+  .a4-sheet td.role-slot {
+    position: relative;
+  }
+  .a4-sheet .slot-inner {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-sizing: border-box;
+    padding-bottom: 15px;
+  }
+  .a4-sheet .add-shift-btn {
+    display: block;
+    width: 100%;
+    height: 11px;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    border: 1px solid #c4c4c4;
+    border-radius: 6px;
+    background: #fff;
+    color: #888;
+    font-size: 10px;
+    line-height: 9px;
+    cursor: pointer;
+  }
+  .a4-sheet .slot-inner .add-shift-btn {
+    position: absolute;
+    left: 1px;
+    right: 1px;
+    bottom: 5px;
+    width: auto;
+  }
+  .a4-sheet .add-shift-btn:hover {
+    border-color: #8f8f8f;
+    color: #444;
+    background: #f3f4f6;
+  }
+  /* 名前＋時間の1ブロック。余白は極力詰め、複数人が重なる枠（overflow-cell）でだけ
+     下マージンを広めに取って人ごとの区切りを分かりやすくする */
+  .a4-sheet .assign-block {
+    margin: 0;
+    padding: 0;
+  }
+  .a4-sheet .assign-block:not(:last-child) {
+    margin-bottom: 3px;
+  }
+  /* 厨房・ホールそれぞれの枠内の間の線は引かない（厨房とホールの間の線は残す） */
+  .a4-sheet .assign-cell.pair-top {
+    border-bottom: none;
+  }
+  .a4-sheet .assign-cell.pair-mid {
+    border-top: none;
+    border-bottom: none;
+  }
+  .a4-sheet .assign-cell.pair-bottom {
+    border-top: none;
+  }
+  .a4-sheet .assign-name {
+    font-weight: bold;
+    font-size: 18px;
+    margin: 0;
+    padding: 0;
+  }
+  /* 姓のみ表示（同姓の人がいない）の場合は文字を大きくする */
+  .a4-sheet .assign-name.surname-only {
+    font-size: 21px;
+  }
+  .a4-sheet .last-cell .assign-name.surname-only {
+    font-size: 18px;
+  }
+  .a4-sheet .chief-cell .surname-only {
+    font-size: 16.5px;
+  }
+  .a4-sheet .chief-end {
+    font-size: 10.8px;
+    font-weight: bold;
+    color: #000;
+  }
+  .a4-sheet .assign-time {
+    font-size: 12px;
+    font-weight: bold;
+    color: #000;
+    margin: 0;
+    padding: 0;
+  }
+  /* 人数が固定行数（厨房3・ホール5）を超えた日は、その日の列の該当役割（compact-cell）だけ
+     文字を小さく詰め、一番下のセル（overflow-cell）には溢れた人をまとめて表示する */
+  .a4-sheet .assign-cell.compact-cell {
+    line-height: 1.1;
+  }
+  .a4-sheet .assign-cell.compact-cell .assign-name {
+    font-size: 15px;
+  }
+  .a4-sheet .assign-cell.compact-cell .assign-name.surname-only {
+    font-size: 16.5px;
+  }
+  .a4-sheet .assign-cell.compact-cell .assign-time {
+    font-size: 9.6px;
+  }
+  .a4-sheet .assign-cell.compact-cell .assign-block:not(:last-child) {
+    margin-bottom: 2px;
+  }
+  /* 溢れ表示のマスは、行の高さ（layoutSheetRows が固定）の中に収まるよう、枠同士の間隔で調整する。
+     マス（行）の高さは人数が増えても広げない。間隔が0でも収まらないときだけ .tight で文字をさらに詰める */
+  .a4-sheet .assign-cell.overflow-cell .slot-inner {
+    overflow: hidden;
+  }
+  .a4-sheet .assign-cell.overflow-cell .slot-items {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .a4-sheet .assign-cell.overflow-cell .assign-block:not(:last-child) {
+    margin-bottom: 0;
+  }
+  /* 人数が行数を超えた日：ブロック全体（厨房3行／ホール5行）を1つの結合マスにする。
+     中身は絶対配置でマスいっぱいに広げ、行の高さの計算には影響させない（＝ブロックの高さは固定）。
+     人数が増えたぶんは枠同士の間隔（space-between）が狭まることで収まる */
+  .a4-sheet td.block-merged {
+    position: relative;
+    padding: 0;
+  }
+  .a4-sheet .block-merged .block-inner {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    bottom: 1px;
+    left: 1px;
+    display: flex;
+    flex-direction: column;
+  }
+  .a4-sheet .block-merged .block-items {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .a4-sheet .block-merged .assign-block:not(:last-child) {
+    margin-bottom: 0;
+  }
+  .a4-sheet .block-merged .add-shift-btn {
+    flex: 0 0 auto;
+    margin-bottom: 4px;     /* inner が下端から1px内側のため、合計でマスの最下端から5px上 */
+  }
+  /* 間隔を0にしても収まらないときだけ、文字をさらに詰める */
+  .a4-sheet .assign-cell.tight {
+    line-height: 1;
+  }
+  .a4-sheet .assign-cell.tight .assign-name {
+    font-size: 12px;
+  }
+  .a4-sheet .assign-cell.tight .assign-name.surname-only {
+    font-size: 13px;
+  }
+  .a4-sheet .assign-cell.tight .assign-time {
+    font-size: 8.5px;
+  }
+  /* --- 手動編集：氏名の枠（白抜き・薄い灰色）とドラッグ＆ドロップ --- */
+  /* 枠は「氏名＋時間」をひとまとめに囲み、ドラッグでも一緒に動く。タップで編集ポップアップが開く */
+  .a4-sheet .name-frame {
+    display: block;
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+    background: #fff;
+    border: 1px solid #c4c4c4;
+    border-radius: 3px;
+    padding: 0 3px;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .a4-sheet .name-frame:hover {
+    border-color: #8f8f8f;
+  }
+  /* 希望と食い違う位置に置いた氏名（✕の日・希望時間外・同日の重複など）は赤枠で知らせる */
+  .a4-sheet .name-frame.warn {
+    border-color: #e04848;
+    background: #fff1f1;
+  }
+  .a4-sheet .chief-cell .name-frame:not(:last-child) {
+    margin-bottom: 2px;
+  }
+  .a4-sheet .name-frame.drag-origin {
+    opacity: 0.25;
+  }
+  .a4-sheet .name-frame.just-dropped {
+    animation: frame-snap 0.28s ease-out;
+  }
+  @keyframes frame-snap {
+    0%   { transform: scale(1.25); box-shadow: 0 0 0 3px rgba(59,130,246,0.55); }
+    60%  { transform: scale(0.95); box-shadow: 0 0 0 1px rgba(59,130,246,0.3); }
+    100% { transform: scale(1);    box-shadow: none; }
+  }
+  body.dragging, body.dragging * {
+    cursor: grabbing !important;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .a4-sheet td.drop-candidate {
+    outline: 1px dashed #93b4e8;
+    outline-offset: -2px;
+  }
+  .a4-sheet td.drop-active {
+    background: #dbeafe;
+    outline: 2px solid #3b82f6;
+    outline-offset: -2px;
+  }
+  .drag-ghost {
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+    margin: 0;
+    box-sizing: border-box;
+    background: #fff;
+    border: 1px solid #8f8f8f;
+    border-radius: 3px;
+    padding: 0 3px;
+    text-align: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    opacity: 0.95;
+    white-space: nowrap;
+  }
+  .drag-ghost.warn {
+    border-color: #e04848;
+    background: #fff1f1;
+  }
+  .drag-ghost.snapping {
+    transition: left 0.08s ease-out, top 0.08s ease-out;
+  }
+
+  /* 研修の注記：氏名の右に同じ行で「(研修)」と付記する（赤字・半角カッコ）（枠の縦幅を他と揃えるため丸囲みは使わない） */
+  .a4-sheet .trainee-badge {
+    display: inline;
+    margin-left: 0;
+    font-size: 10px;
+    font-weight: normal;
+    color: #c01c28;
+    white-space: nowrap;
+  }
+  /* 研修の人は氏名と(研修)を必ず同じ行に置く。枠いっぱいになるのでパディングも詰める */
+  .a4-sheet .assign-name.has-trainee {
+    white-space: nowrap;
+  }
+  .a4-sheet .name-frame:has(.has-trainee) {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .a4-sheet .assign-empty {
+    color: #c01c28;
+    font-size: 10px;
+  }
+  .a4-sheet .help-cell {
+    padding: 1px 2px;
+  }
+  .a4-sheet .help-text {
+    color: #c01c28;
+    font-weight: bold;
+    font-size: 11px;
+  }
+  /* 料理長行：営業/定休日行と同じ薄さにするための縮小スタイル */
+  .a4-sheet .chief-cell {
+    font-size: 13.5px;
+    line-height: 1.2;
+    padding: 1px 2px;
+  }
+  /* 料理長行は1枠ぶんの高さ＋「＋」ボタンの余白。中身は仕込み欄と同じ結合マス方式（.block-merged）で収める */
+  .a4-sheet .chief-cell.block-merged {
+    height: 58px;
+  }
+  .a4-sheet .chief-cell.block-merged .name-frame:not(:last-child) {
+    margin-bottom: 0;
+  }
+  /* ラスト行（厨房側・ホール側の2行）：営業/定休日行と同じ薄さ、名前のみ表示 */
+  .a4-sheet .last-cell {
+    font-size: 10px;
+    line-height: 1.1;
+    padding: 0 2px;
+  }
+  .a4-sheet .last-cell .assign-name {
+    font-weight: bold;
+  }
+  /* 仕込み欄は名前の枠2つぶんの高さ（厨房・ホールの1行＝49.25px×2）。余った高さは紙面の最下部の余白 */
+  .a4-sheet .prep-cell {
+    height: 113.5px;   /* 名前の枠2つぶん（49.25px×2）＋「＋」ボタンの余白15px */
+  }
+  .a4-sheet .prep-cell .block-inner {
+    top: 3px;          /* 厨房・ホールの枠と同じく、枠の上に3pxの余白 */
+  }
+  /* 厨房・ホールの1行の高さ（名前の枠＋上下3px）。全日が結合マスになった行でも潰れないよう行自体に指定する */
+  .a4-sheet tr[data-block="kitchen"],
+  .a4-sheet tr[data-block="hall"] {
+    height: 49.25px;
+  }
+  .a4-sheet .prep-input {
+    flex: 1 1 auto;
+    min-height: 0;
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    border: none;
+    background: transparent;
+    font-size: 9px;
+    text-align: center;
+    padding: 1px;
+  }
+  .a4-sheet .prep-input:focus {
+    background: #fffbe0;
+    outline: 1px solid #e0a94c;
+  }
+  .a4-sheet .closed-cell {
+    background: #dbeafe;
+    position: relative;
+  }
+  .a4-sheet .closed-cell .closed-mark {
+    display: inline-block;
+    transform: rotate(-18deg);
+    color: #1a5fb4;
+    font-weight: bold;
+    font-size: 13px;
+    border: 2px solid #1a5fb4;
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    line-height: 22px;
+  }
+
+  /* スマホ幅ではシートを縦並びにする。シートの中身（マスの高さ・文字サイズ）はpx固定のため、
+     シートの幅だけを画面幅に縮めるとA4比率の高さが足りず下にはみ出す。そこでPCと同じ幅560pxのまま組み、
+     シート全体を画面幅に合わせて等倍縮小する（縮小率 --fit-zoom は layoutSheetRows が計算して設定）。 */
+  @media screen and (max-width: 900px) {
+    .sheets-wrap {
+      flex-direction: column;
+      align-items: center;
+    }
+    .a4-sheet {
+      width: 560px;
+      max-width: none;
+      zoom: var(--fit-zoom, 1);
+    }
+  }
+
+  /* --- LINE送信用の画像化：印刷と同じく、A4の外枠・＋ボタン・警告の赤枠を消し、縮小せずに描画する --- */
+  body.capture-mode .a4-sheet {
+    zoom: 1 !important;
+    border-color: transparent;
+    box-shadow: none;
+  }
+  body.capture-mode .a4-sheet .add-shift-btn {
+    visibility: hidden;
+  }
+  body.capture-mode .a4-sheet .name-frame.warn {
+    border-color: #ccc;
+    box-shadow: none;
+  }
+  .popup.send-popup {
+    width: 460px;
+  }
+  .send-previews {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 12px;
+  }
+  .send-previews img {
+    width: 120px;
+    min-width: 0;
+    border: 1px solid #ccc;
+  }
+  .popup-field textarea {
+    width: 100%;
+    font-size: 14px;
+    padding: 6px;
+    box-sizing: border-box;
+    font-family: inherit;
+  }
+  .send-note {
+    font-size: 12px;
+    color: #555;
+    margin-top: 4px;
+  }
+
+  /* --- popup --- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .popup {
+    background: #fff;
+    border-radius: 10px;
+    padding: 20px 24px;
+    width: 340px;
+    max-width: 90vw;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .popup-header {
+    text-align: center;
+    margin-bottom: 14px;
+  }
+  .popup-header .p-date {
+    font-size: 20px;
+    font-weight: bold;
+  }
+  .popup-field {
+    margin-bottom: 10px;
+  }
+  .popup-field label {
+    display: block;
+    font-size: 12px;
+    color: #555;
+    margin-bottom: 2px;
+  }
+  .popup-field input[type="password"],
+  .popup-field input[type="text"] {
+    width: 100%;
+    font-size: 14px;
+    padding: 6px;
+    box-sizing: border-box;
+  }
+  .popup-field .error-text {
+    color: #c01c28;
+    font-size: 12px;
+    margin-top: 6px;
+    min-height: 14px;
+  }
+  .popup-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 18px;
+  }
+  .popup-footer button {
+    padding: 8px 18px;
+    font-size: 14px;
+    border-radius: 6px;
+    border: 1px solid #999;
+    background: #f5f5f5;
+  }
+  .popup-footer .confirm-btn {
+    background: #1a5fb4;
+    color: #fff;
+    border-color: #1a5fb4;
+    font-weight: bold;
+  }
+
+  .popup-field select {
+    width: 100%;
+    font-size: 14px;
+    padding: 6px;
+    box-sizing: border-box;
+  }
+  .popup-field .time-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .popup-field .time-row select {
+    flex: 1;
+  }
+  .popup-footer .delete-btn {
+    color: #c01c28;
+    border-color: #c01c28;
+  }
+  /* --- シフト枠の編集ポップアップ --- */
+  .edit-popup {
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .edit-popup .p-sub {
+    font-size: 12px;
+    color: #555;
+    margin-top: 2px;
+  }
+  .circle-list {
+    margin: 0;
+    padding: 6px 8px;
+    list-style: none;
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+  .circle-list li {
+    padding: 2px 0;
+  }
+  .circle-list .circle-cond {
+    color: #666;
+    font-size: 11px;
+    margin-left: 4px;
+  }
+  .circle-list .circle-placed {
+    color: #1a5fb4;
+    font-size: 11px;
+    margin-left: 4px;
+  }
+  .circle-list .circle-none {
+    color: #888;
+  }
+
+  #adminContent {
+    display: none;
+  }
+
+  /* --- シフト希望登録状況（読み取り専用一覧） --- */
+  .section-title {
+    font-size: 16px;
+    margin: 28px 0 4px;
+  }
+  /* --- 出勤回数の週別集計テーブル --- */
+  #countSummaryWrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+  #countSummaryWrap table {
+    border-collapse: collapse;
+    white-space: nowrap;
+  }
+  #countSummaryWrap th, #countSummaryWrap td {
+    border: 1px solid #999;
+    padding: 4px 12px;
+    text-align: center;
+    font-size: 13px;
+  }
+  #countSummaryWrap th { background: #f0f0f0; }
+  #countSummaryWrap td.name-col {
+    font-weight: bold;
+    text-align: left;
+  }
+  #availabilityWrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+    border: 1px solid #999;
+    border-radius: 4px;
+  }
+  #availabilityWrap table {
+    border-collapse: collapse;
+    white-space: nowrap;
+  }
+  #availabilityWrap th, #availabilityWrap td {
+    border: 1px solid #999;
+    padding: 2px 3px;
+    text-align: center;
+    font-size: 12px;
+  }
+  #availabilityWrap th {
+    background: #f0f0f0;
+  }
+  #availabilityWrap th.sat { color: #1a5fb4; }
+  #availabilityWrap th.sun { color: #c01c28; }
+  #availabilityWrap td.name-col {
+    font-weight: bold;
+    text-align: left;
+    white-space: nowrap;
+  }
+  #availabilityWrap th:first-child, #availabilityWrap td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    box-shadow: 2px 0 4px rgba(0,0,0,0.08);
+  }
+  #availabilityWrap th:first-child {
+    z-index: 3;
+    background: #f0f0f0;
+  }
+  #availabilityWrap td:first-child {
+    background: #fff;
+  }
+  #availabilityWrap .avail-cell {
+    width: 60px;
+    min-height: 44px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.25;
+  }
+  #availabilityWrap .avail-cell.avail-cross { background: #fde3e3; }
+  #availabilityWrap .avail-cell.avail-circle-full { background: #dbeafe; }
+  #availabilityWrap .avail-cell.avail-circle-partial { background: #eff6ff; }
+  #availabilityWrap .avail-placeholder {
+    color: #bbb;
+    font-size: 11px;
+  }
+  #availabilityWrap .avail-mark-img-big { width: 26px; height: 26px; display: block; }
+  #availabilityWrap .avail-mark-img-small { width: 14px; height: 14px; display: block; margin-bottom: 2px; }
+  #availabilityWrap .avail-sub-line { font-size: 9px; color: #333; }
+
+  /* --- 印刷：A4シート（1週間分）を1枚ずつA4縦1ページに印刷する。シート以外（ボタン・集計・希望一覧など）は印刷しない --- */
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+  @media print {
+    html, body {
+      margin: 0;
+      background: #fff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    body > *, #adminContent > * { display: none !important; }
+    #adminContent, #tableWrap { display: block !important; }
+    .sheets-wrap {
+      display: block;
+    }
+    .a4-sheet {
+      zoom: 1.41;   /* 幅560pxのシートをA4用紙いっぱい（794×1123px）へ拡大。1.418倍で丁度なので、はみ出して2ページ目にならないよう少し小さめ */
+      width: 560px;
+      max-width: none;
+      margin: 0;
+      border: none;   /* A4の範囲を示す外枠は印刷しない */
+      box-shadow: none;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .a4-sheet + .a4-sheet {
+      break-before: page;
+      page-break-before: always;
+    }
+  }
+
+  @media (max-width: 480px) {
+    body { margin: 10px; }
+    h1 { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<h1 id="pageTitle">自動シフト作成</h1>
+
+<div id="adminContent">
+  <div class="controls">
+    <button id="backBtn">← シフト希望登録に戻る</button>
+    <button id="regenerateBtn">再生成</button>
+    <button id="printBtn">印刷</button>
+    <button id="sendBtn">LINEに送信</button>
+  </div>
+
+  <div id="tableWrap"></div>
+
+  <h2 class="section-title">シフト出勤回数（週ごとの集計）</h2>
+  <div id="countSummaryWrap"></div>
+
+  <h2 class="section-title">シフト希望登録状況（一覧）</h2>
+  <p class="empty-note" style="margin-top:0;">参考表示です。内容の変更はシフト希望登録画面で行ってください。</p>
+  <div id="availabilityWrap"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script>
+(async function () {
+  await ShiftDB.ready();
+  const AUTO_GENERATE_KEY = "shiftAutoGenerate";
+  const MANUAL_CREATE_KEY = "shiftManualCreate";
+  const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+  const DAYS_COUNT = 14;
+  const WISH_PRESETS = ["早イン", "早上がり", "ラスト"];
+  const START_OPTIONS = generateTimeOptions(15, 0, 21, 0, 30, (h, m) => `${pad(h)}:${pad(m)}~`);
+  const END_OPTIONS = generateTimeOptions(18, 0, 24, 0, 30, (h, m) => `~${pad(h)}:${pad(m)}`);
+  const ICON_CIRCLE = "../Circle.png";
+  const ICON_CROSS = "../Cross.png";
+
+  // 生成結果のデータ形式のバージョン。タイムテーブル方式への変更で形式が変わったため、
+  // 古い形式の保存済み結果（version 無し）は再生成が必要なものとして無視する。
+  const GEN_VERSION = 2;
+
+  // A4シート上に常に描画する行数（厨房3行・ホール5行で固定）。人数がこれ以下の日は上の枠から詰めて表示する。
+  // これを超える日は、その日の列の該当役割だけ文字を小さく詰め、一番下のセルに溢れた人をまとめて表示する。
+  const ROW_COUNTS = { kitchen: 3, hall: 5 };
+
+  // 手動編集（氏名のドラッグ＆ドロップ）の設定と状態
+  const SNAP_RADIUS_PX = 48;   // 空きマスからこの距離以内なら吸着する
+  const DRAG_THRESHOLD_PX = 4; // これ以上動かして初めてドラッグ開始とみなす
+  let frameWarnings = {};      // key（日付|役割|位置）→ 警告文。描画のたびに作り直す
+  let drag = null;             // ドラッグ中の状態
+
+  // 9.9節「曜日ごとの必要人数」が未設定のときのフォールバック（表示行数とは別）
+  const DEFAULT_REQUIRED_COUNTS = { kitchen: 2, hall: 4 };
+
+  // タイムテーブルの時間粒度と各種既定の勤務長さ
+  const SLOT_MINUTES = 30;
+  const DEFAULT_WORK_MINUTES = 4 * 60;   // オープン担当・不足補充の既定勤務時間
+  const TRAINEE_WORK_MINUTES = 2 * 60;   // 研修の勤務時間
+  const LAST_TARGET_MINUTES = 18 * 60;   // ラストの既定出勤時刻
+  const LAST_ADJUST_MINUTES = 60;        // ラスト出勤時刻を申告時刻に合わせられる許容幅（前後1時間）
+  const EARLY_IN_WINDOW_MINUTES = 5 * 60;  // 希望「早イン」：オープンから5時間
+  const LAST_WISH_WINDOW_MINUTES = 6 * 60; // 希望「ラスト」：クローズ前6時間
+  const EARLY_OUT_LIMIT_MINUTES = 21 * 60; // 希望「早上がり」：オープン〜21:00
+
+  // 厨房・ホールに入れる属性と、その優先順位（先頭が最優先）。
+  // 「ヘルプ」はホールのみ。「研修」は必要人数の外枠としてホールに別途入れる（下記 findTraineeSlot）。
+  // 「料理長」は専用行に表示するため厨房・ホールには割り当てない。
+  const KITCHEN_PRIORITY = ["厨房専門", "厨房優先", "指定なし", "ホール優先"];
+  const HALL_PRIORITY = ["ホール専門", "ホール優先", "指定なし", "厨房優先", "ヘルプ"];
+
+  // すでにその週（7日単位。週1=開始日から7日、週2=その次の7日）に一定回数以上入っている人は、
+  // 属性の優先順位を著しく下げる（＝他に候補がいなければ選ばれるが、通常は後回しにする）。
+  const WEEKLY_PRIORITY_DROP_THRESHOLD = 3; // 週に何回以上入っていたら下げるか
+  const WEEKLY_PRIORITY_PENALTY = 0.3;      // 下げた後の優先順位（最下位の属性＝1より低い値にする）
+
+  const DEFAULT_SHIFT_PARAMS = {
+    weekStartWeekday: 1,
+    defaultClosedWeekdays: [3],
+    openTimeByWeekday: { 0: "16:00", 1: "16:00", 2: "17:00", 3: "16:00", 4: "17:00", 5: "16:00", 6: "16:00" },
+    closeTimeByWeekday: { 0: "23:00", 1: "23:00", 2: "23:00", 3: "23:00", 4: "23:00", 5: "23:00", 6: "23:00" },
+    requiredCountByWeekday: {
+      kitchen: { 0: 2, 1: 2, 2: 2, 3: 2, 4: 2, 5: 2, 6: 2 },
+      hall: { 0: 3, 1: 2, 2: 2, 3: 2, 4: 2, 5: 3, 6: 3 }
+    },
+    temporaryClosedDates: []
+  };
+
+  let state = loadState() || { startDate: toIsoDate(new Date()), staff: [], cells: {}, closedDates: [], closedDateOverrides: [] };
+  if (!state.closedDates) state.closedDates = [];
+  delete state.closedDayRules; // 廃止した「定休日設定」ルールの残データを破棄
+  if (!state.closedDateOverrides) state.closedDateOverrides = [];
+  if (!state.shiftParams) state.shiftParams = JSON.parse(JSON.stringify(DEFAULT_SHIFT_PARAMS));
+  if (!state.shiftParams.openTimeByWeekday) state.shiftParams.openTimeByWeekday = JSON.parse(JSON.stringify(DEFAULT_SHIFT_PARAMS.openTimeByWeekday));
+  if (!state.shiftParams.closeTimeByWeekday) state.shiftParams.closeTimeByWeekday = JSON.parse(JSON.stringify(DEFAULT_SHIFT_PARAMS.closeTimeByWeekday));
+  if (!state.shiftParams.requiredCountByWeekday) state.shiftParams.requiredCountByWeekday = JSON.parse(JSON.stringify(DEFAULT_SHIFT_PARAMS.requiredCountByWeekday));
+  if (!state.shiftParams.requiredCountByWeekday.kitchen) state.shiftParams.requiredCountByWeekday.kitchen = JSON.parse(JSON.stringify(DEFAULT_SHIFT_PARAMS.requiredCountByWeekday.kitchen));
+  if (!state.shiftParams.requiredCountByWeekday.hall) state.shiftParams.requiredCountByWeekday.hall = JSON.parse(JSON.stringify(DEFAULT_SHIFT_PARAMS.requiredCountByWeekday.hall));
+  if (!state.shiftParams.defaultClosedWeekdays) {
+    if (state.shiftParams.defaultClosedWeekday !== undefined && state.shiftParams.defaultClosedWeekday !== null) {
+      state.shiftParams.defaultClosedWeekdays = [Number(state.shiftParams.defaultClosedWeekday)];
+    } else {
+      state.shiftParams.defaultClosedWeekdays = [];
+    }
+  }
+  delete state.shiftParams.defaultClosedWeekday;
+  if (!state.shiftParams.temporaryClosedDates) state.shiftParams.temporaryClosedDates = [];
+  if (!state.prepNotes) state.prepNotes = {};
+
+  const adminContent = document.getElementById("adminContent");
+  const backBtn = document.getElementById("backBtn");
+  const regenerateBtn = document.getElementById("regenerateBtn");
+  const tableWrap = document.getElementById("tableWrap");
+  const availabilityWrap = document.getElementById("availabilityWrap");
+  const countSummaryWrap = document.getElementById("countSummaryWrap");
+
+  backBtn.addEventListener("click", () => {
+    ShiftDB.go("shift_availability.html");
+  });
+
+  regenerateBtn.addEventListener("click", () => {
+    const manual = isManualMode();
+    if (!confirmDiscardEdits(manual ? "白紙に戻す" : "再生成する")) return;
+    if (manual) createBlankShift();
+    else runGeneration();
+  });
+
+  // 印刷：ブラウザの印刷メニューを開く（接続中のプリンターを選んで印刷できる）
+  document.getElementById("printBtn").addEventListener("click", () => {
+    if (!tableWrap.querySelector(".a4-sheet")) {
+      alert("印刷できるシフト表がありません。");
+      return;
+    }
+    window.print();
+  });
+  // 印刷時はシートの幅が画面表示と変わるため、印刷レイアウトに切り替わった時・戻った時に行の高さを測り直す
+  window.matchMedia("print").addEventListener("change", () => {
+    if (tableWrap.querySelector(".a4-sheet")) layoutSheetRows();
+  });
+
+  // 送信：完成したシフト表を画像にして公式LINEの友だち全員に送る
+  document.getElementById("sendBtn").addEventListener("click", openSendPopup);
+
+  setupDrag();
+  showAdminContent();
+
+  function showAdminContent() {
+    adminContent.style.display = "block";
+    let autoGenerate = false;
+    try {
+      autoGenerate = sessionStorage.getItem(AUTO_GENERATE_KEY) === "1";
+      sessionStorage.removeItem(AUTO_GENERATE_KEY);
+    } catch (e) {
+      autoGenerate = false;
+    }
+    let manualCreate = false;
+    try {
+      manualCreate = sessionStorage.getItem(MANUAL_CREATE_KEY) === "1";
+      sessionStorage.removeItem(MANUAL_CREATE_KEY);
+    } catch (e) {
+      manualCreate = false;
+    }
+    // 手動編集済みのシフトがある場合は、作り直してよいか確認する（断れば編集済みのまま表示）
+    if (manualCreate && confirmDiscardEdits("白紙から作り直す")) {
+      createBlankShift();
+    } else if (autoGenerate && confirmDiscardEdits("作り直す")) {
+      runGeneration();
+    } else {
+      renderTable();
+    }
+  }
+
+  function shuffleArray(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  // ---------- 自動生成ロジック（タイムテーブル方式） ----------
+  // 日付ごとに、オープン時刻を開始点・クローズ時刻を終了点とするタイムテーブルを作り、
+  // そこに出勤可能時間帯をプロットしてから担当を確定していく。
+  //
+  // 1. その日のオープン時刻〜クローズ時刻のタイムテーブルを用意する（9.9節の曜日ごとの設定値）。
+  // 2. その日「○」の人の出勤可能時間帯をタイムテーブル上にプロットする。
+  //      無印の○          → オープン〜クローズ
+  //      時間指定あり      → 申告された時間帯（片側のみの申告は、もう片側をオープン／クローズで補う）
+  //      希望「早イン」    → オープン〜オープン+5時間
+  //      希望「早上がり」  → オープン〜21:00
+  //      希望「ラスト」    → クローズ-6時間〜クローズ
+  //    （時間指定と希望の両方がある場合は両者の重なりを採用。重ならない場合は申告時刻を優先）
+  // 3. 厨房のオープン担当（オープン時刻から入れる人）を属性の優先順位で探して確定する。勤務は4時間。
+  // 4. ホールのオープン担当を同様に確定する。勤務は4時間。
+  //    オープン担当は希望「早イン」「早上がり」の人を属性より先に優先する。
+  // 5. 厨房のラスト担当（クローズまで残れる人）を属性の優先順位で探して確定する。勤務は18:00〜クローズ。
+  //    申告された出勤時刻が18:00の前後1時間以内であれば、その時刻に合わせる。ホールも同様。
+  // 6. 曜日ごとの必要人数に足りない分を、出勤回数の少ない人優先（同数ならランダム）で補充する。
+  //    勤務は4時間で、同じ役割内で出勤開始時刻が重複しないように置く。
+  // 7. 属性「研修」の人は必要人数の外枠として、ホールの確定メンバーの勤務時間に完全に含まれる
+  //    2時間を探してホールに入れる（見つからない日は入れない）。
+  //
+  // 同一人物が1日に持てる枠は1つだけ（オープンとラストの兼任はしない）。
+  // 均等化（3.1節）は、2週間を通した出勤回数が少ない人を優先する形で各選出に反映する。
+
+  function runGeneration() {
+    const dates = getDateRange(state.startDate, DAYS_COUNT);
+    const activeStaff = state.staff.filter(p => p.name && p.name.trim() !== "");
+
+    if (activeStaff.length === 0) {
+      alert("スタッフが登録されていません。管理ページで先にスタッフを登録してください。");
+      return;
+    }
+
+    const shiftCount = {};
+    const weeklyShiftCount = {}; // personId -> [週1の回数, 週2の回数, ...]
+    activeStaff.forEach(p => { shiftCount[p.id] = 0; weeklyShiftCount[p.id] = []; });
+
+    const assignment = {};
+
+    for (let dayIndex = 0; dayIndex < dates.length; dayIndex++) {
+      const d = dates[dayIndex];
+      const dateIso = toIsoDate(d);
+      if (isClosedDate(dateIso)) {
+        assignment[dateIso] = null; // 定休日・臨時休業
+        continue;
+      }
+      const weekIndex = Math.floor(dayIndex / 7); // 7日ごとに週を区切る（A4シートの週区切りと同じ）
+      assignment[dateIso] = buildDayAssignment(d, dateIso, activeStaff, shiftCount, weeklyShiftCount, weekIndex);
+    }
+
+    state.generatedShift = { version: GEN_VERSION, startDate: state.startDate, assignment };
+    saveState();
+    renderTable();
+  }
+
+  // 「シフトを自作する」用：誰も割り当てていない白紙のシフトを作る。
+  // 営業日ごとのオープン・クローズ時刻だけを持たせ、料理長・仕込み・厨房・ホールは空にする
+  // （人は「＋」ボタンや枠の編集ポップアップから手動で入れる）。
+  function createBlankShift() {
+    const dates = getDateRange(state.startDate, DAYS_COUNT);
+    const assignment = {};
+    for (const d of dates) {
+      const dateIso = toIsoDate(d);
+      if (isClosedDate(dateIso)) { assignment[dateIso] = null; continue; }
+      const weekday = d.getDay();
+      let openMin = parseTimeToMinutes(getOpenTime(weekday));
+      let closeMin = parseTimeToMinutes(getCloseTime(weekday));
+      if (openMin === null) openMin = 16 * 60;
+      if (closeMin === null) closeMin = 23 * 60;
+      if (closeMin <= openMin) closeMin += 24 * 60;
+      assignment[dateIso] = {
+        openMin, closeMin,
+        chief: [], prep: [], kitchen: [], hall: [],
+        lastKitchen: null, lastHall: null,
+        shortage: false
+      };
+    }
+    state.generatedShift = { version: GEN_VERSION, startDate: state.startDate, assignment, manual: true };
+    saveState();
+    renderTable();
+  }
+
+  // 自作モード（白紙から手動で作るシフト）かどうか。この間は「未定」「HELP」の表示を出さない。
+  function isManualMode() {
+    const gen = getValidGen();
+    return !!(gen && gen.manual);
+  }
+
+  // 1日分のタイムテーブルを組み立てて担当を確定する。
+  function buildDayAssignment(dateObj, dateIso, activeStaff, shiftCount, weeklyShiftCount, weekIndex) {
+    const weekday = dateObj.getDay();
+
+    // ステップ1：オープン〜クローズのタイムテーブル
+    let openMin = parseTimeToMinutes(getOpenTime(weekday));
+    let closeMin = parseTimeToMinutes(getCloseTime(weekday));
+    if (openMin === null) openMin = 16 * 60;
+    if (closeMin === null) closeMin = 23 * 60;
+    if (closeMin <= openMin) closeMin += 24 * 60; // 閉店が日付をまたぐ場合
+    const tt = { openMin, closeMin };
+
+    // ステップ2：○の人の出勤可能時間帯をプロットする
+    const entries = [];
+    const chief = [];
+    const trainees = [];
+
+    for (const person of activeStaff) {
+      const cell = state.cells[person.id + "_" + dateIso];
+      if (!cell || cell.mark !== "○") continue; // ✕・未入力は候補外
+
+      const attribute = person.attribute || "指定なし";
+      const entry = {
+        person,
+        cell,
+        attribute,
+        win: buildAvailabilityWindow(cell, tt),
+        declaredStart: parseTimeToMinutes(cell.start)
+      };
+
+      if (attribute === "料理長") { chief.push(entry); continue; } // 専用行にそのまま表示
+      if (attribute === "研修") { trainees.push(entry); continue; } // 必要人数の外枠（ステップ7）
+      if (!entry.win) continue; // 申告内容が営業時間と重ならない場合は割当対象外
+      entries.push(entry);
+    }
+
+    const used = {}; // 同一人物を1日に2枠入れないための記録
+    const picks = { kitchen: [], hall: [] };
+
+    function confirmPick(role, assign) {
+      if (!assign) return;
+      picks[role].push(assign);
+      used[assign.person.id] = true;
+      shiftCount[assign.person.id] = (shiftCount[assign.person.id] || 0) + 1;
+      weeklyShiftCount[assign.person.id][weekIndex] = (weeklyShiftCount[assign.person.id][weekIndex] || 0) + 1;
+    }
+
+    // ステップ3・4：厨房→ホールの順にオープン担当を確定する
+    confirmPick("kitchen", pickOpener("kitchen", entries, used, tt, shiftCount, weeklyShiftCount, weekIndex));
+    confirmPick("hall", pickOpener("hall", entries, used, tt, shiftCount, weeklyShiftCount, weekIndex));
+
+    // ステップ5：厨房→ホールの順にラスト担当を確定する
+    confirmPick("kitchen", pickLast("kitchen", entries, used, tt, shiftCount, weeklyShiftCount, weekIndex));
+    confirmPick("hall", pickLast("hall", entries, used, tt, shiftCount, weeklyShiftCount, weekIndex));
+
+    // ステップ6：必要人数に足りない分を補充する
+    for (const role of ["kitchen", "hall"]) {
+      const need = requiredCount(role, weekday);
+      while (picks[role].length < need) {
+        const filler = pickFiller(role, entries, used, tt, shiftCount, picks[role]);
+        if (!filler) break; // 出勤可能な人が尽きた（HELP行で知らせる）
+        confirmPick(role, filler);
+      }
+    }
+
+    // ステップ7：研修をホールの確定メンバーの勤務時間内に2時間だけ入れる
+    const traineeAssigns = [];
+    for (const t of trainees) {
+      if (!t.win) continue;
+      const slot = findTraineeSlot(t, picks.hall);
+      if (!slot) continue;
+      const assign = makeAssign(t, "hall", slot.start, slot.end, { isTrainee: true });
+      traineeAssigns.push(assign);
+      used[t.person.id] = true;
+      shiftCount[t.person.id] = (shiftCount[t.person.id] || 0) + 1;
+      weeklyShiftCount[t.person.id][weekIndex] = (weeklyShiftCount[t.person.id][weekIndex] || 0) + 1;
+    }
+
+    const shortage = picks.kitchen.length < requiredCount("kitchen", weekday)
+      || picks.hall.length < requiredCount("hall", weekday);
+
+    return {
+      openMin: tt.openMin,
+      closeMin: tt.closeMin,
+      chief,
+      prep: [], // 仕込みは自動生成せず、手動で追加した枠だけを持つ
+      kitchen: picks.kitchen,
+      hall: picks.hall.concat(traineeAssigns), // 研修は必要人数の外側（末尾）に並べる
+      lastKitchen: picks.kitchen.filter(a => a.isLast)[0] || null,
+      lastHall: picks.hall.filter(a => a.isLast)[0] || null,
+      shortage
+    };
+  }
+
+  // 1人分の出勤可能時間帯（タイムテーブル上の区間）を求める。
+  function buildAvailabilityWindow(cell, tt) {
+    let start = tt.openMin;
+    let end = tt.closeMin;
+
+    const declaredStart = parseTimeToMinutes(cell.start);
+    let declaredEnd = parseTimeToMinutes(cell.end);
+    if (declaredEnd !== null && declaredEnd <= tt.openMin) declaredEnd += 24 * 60; // 24:00 などの表記
+
+    if (declaredStart !== null) start = Math.max(start, declaredStart);
+    if (declaredEnd !== null) end = Math.min(end, declaredEnd);
+
+    const wish = wishWindow(cell.wish, tt);
+    if (wish) {
+      const s = Math.max(start, wish.start);
+      const e = Math.min(end, wish.end);
+      // 申告時刻と希望が両立する場合のみ重なりを採用（両立しない場合は申告時刻を優先）
+      if (e - s >= SLOT_MINUTES) { start = s; end = e; }
+    }
+
+    if (end - start < SLOT_MINUTES) return null;
+    return { start, end };
+  }
+
+  // 希望欄（早イン／早上がり／ラスト）から出勤可能時間帯を決める。自由記述は時間帯を制限しない。
+  function wishWindow(wish, tt) {
+    if (wish === "早イン") {
+      return { start: tt.openMin, end: Math.min(tt.closeMin, tt.openMin + EARLY_IN_WINDOW_MINUTES) };
+    }
+    if (wish === "早上がり") {
+      return { start: tt.openMin, end: Math.min(tt.closeMin, EARLY_OUT_LIMIT_MINUTES) };
+    }
+    if (wish === "ラスト") {
+      return { start: Math.max(tt.openMin, tt.closeMin - LAST_WISH_WINDOW_MINUTES), end: tt.closeMin };
+    }
+    return null;
+  }
+
+  // オープン担当：オープン時刻から入れる人を、希望（早イン・早上がり）→属性→出勤回数の順で選ぶ。
+  // ただし、その週にすでにWEEKLY_PRIORITY_DROP_THRESHOLD回以上入っている人は属性による優先順位を下げる。
+  function pickOpener(role, entries, used, tt, shiftCount, weeklyShiftCount, weekIndex) {
+    const cands = entries.filter(e =>
+      !used[e.person.id] && isRoleEligible(role, e.attribute) && e.win.start <= tt.openMin
+    );
+    if (cands.length === 0) return null;
+
+    shuffleArray(cands); // 同条件の人の並びをランダムにしてから安定ソートする
+    cands.sort((a, b) =>
+      openWishRank(b.cell.wish) - openWishRank(a.cell.wish)
+      || effectiveAttrPriority(role, b.attribute, weeklyCountOf(weeklyShiftCount, b.person.id, weekIndex))
+         - effectiveAttrPriority(role, a.attribute, weeklyCountOf(weeklyShiftCount, a.person.id, weekIndex))
+      || (shiftCount[a.person.id] || 0) - (shiftCount[b.person.id] || 0)
+    );
+
+    const chosen = cands[0];
+    const end = Math.min(chosen.win.end, tt.openMin + DEFAULT_WORK_MINUTES);
+    return makeAssign(chosen, role, tt.openMin, end, { isOpen: true });
+  }
+
+  function openWishRank(wish) {
+    if (wish === "早イン") return 2;   // オープン希望そのもの
+    if (wish === "早上がり") return 1; // 早く上がるため優先的にオープンへ
+    return 0;
+  }
+
+  // ラスト担当：クローズまで残れる人を、属性→希望（ラスト）→出勤回数の順で選ぶ。
+  // 出勤時刻は18:00。申告時刻が18:00の前後1時間以内ならその時刻に合わせる。
+  // こちらも、その週にすでにWEEKLY_PRIORITY_DROP_THRESHOLD回以上入っている人は属性による優先順位を下げる。
+  function pickLast(role, entries, used, tt, shiftCount, weeklyShiftCount, weekIndex) {
+    const cands = [];
+    for (const e of entries) {
+      if (used[e.person.id] || !isRoleEligible(role, e.attribute)) continue;
+      if (e.win.end < tt.closeMin) continue; // クローズまで残れない
+      const start = lastStartMinutes(e, tt);
+      if (start === null) continue;
+      cands.push({ entry: e, start });
+    }
+    if (cands.length === 0) return null;
+
+    shuffleArray(cands);
+    cands.sort((a, b) =>
+      effectiveAttrPriority(role, b.entry.attribute, weeklyCountOf(weeklyShiftCount, b.entry.person.id, weekIndex))
+         - effectiveAttrPriority(role, a.entry.attribute, weeklyCountOf(weeklyShiftCount, a.entry.person.id, weekIndex))
+      || lastWishRank(b.entry.cell.wish) - lastWishRank(a.entry.cell.wish)
+      || (shiftCount[a.entry.person.id] || 0) - (shiftCount[b.entry.person.id] || 0)
+    );
+
+    const chosen = cands[0];
+    return makeAssign(chosen.entry, role, chosen.start, tt.closeMin, { isLast: true });
+  }
+
+  function lastStartMinutes(e, tt) {
+    let start = LAST_TARGET_MINUTES;
+    if (e.declaredStart !== null && Math.abs(e.declaredStart - LAST_TARGET_MINUTES) <= LAST_ADJUST_MINUTES) {
+      start = e.declaredStart; // 18:00±1時間の申告はその時刻に合わせる
+    }
+    if (start < e.win.start) start = e.win.start;
+    if (start > LAST_TARGET_MINUTES + LAST_ADJUST_MINUTES) return null; // 19:00より遅い出勤はラストにしない
+    if (start >= tt.closeMin) return null;
+    return start;
+  }
+
+  function lastWishRank(wish) {
+    return wish === "ラスト" ? 1 : 0;
+  }
+
+  // 不足分の補充：出勤回数が少ない人を優先（同数ならランダム）。
+  // 勤務は4時間で、同じ役割内で出勤開始時刻が重複しないように置く。
+  function pickFiller(role, entries, used, tt, shiftCount, current) {
+    const usedStarts = current.map(a => a.start);
+    const cands = entries.filter(e => !used[e.person.id] && isRoleEligible(role, e.attribute));
+    if (cands.length === 0) return null;
+
+    shuffleArray(cands);
+    cands.sort((a, b) => (shiftCount[a.person.id] || 0) - (shiftCount[b.person.id] || 0));
+
+    for (const e of cands) {
+      const slot = findFillerSlot(e, tt, usedStarts, true);
+      if (slot) return makeAssign(e, role, slot.start, slot.end, {});
+    }
+    // 開始時刻の重複をどうしても避けられない場合は、人数を満たすことを優先して重複を許容する
+    for (const e of cands) {
+      const slot = findFillerSlot(e, tt, usedStarts, false);
+      if (slot) return makeAssign(e, role, slot.start, slot.end, { overlapStart: true });
+    }
+    return null;
+  }
+
+  function findFillerSlot(e, tt, usedStarts, avoidDuplicate) {
+    const limit = Math.min(e.win.end, tt.closeMin);
+    const first = ceilToSlot(e.win.start);
+
+    // まず4時間ぴったり取れる開始時刻を30分刻みで探す
+    for (let s = first; s + DEFAULT_WORK_MINUTES <= limit; s += SLOT_MINUTES) {
+      if (avoidDuplicate && usedStarts.indexOf(s) !== -1) continue;
+      return { start: s, end: s + DEFAULT_WORK_MINUTES };
+    }
+    // 4時間取れない場合は、出勤可能時間帯の範囲で最長の勤務にする
+    if (limit - first >= SLOT_MINUTES && (!avoidDuplicate || usedStarts.indexOf(first) === -1)) {
+      return { start: first, end: limit };
+    }
+    return null;
+  }
+
+  // 研修：ホールの確定メンバーの勤務時間に完全に含まれる2時間を探す（最も早く始められる時間帯を採用）。
+  function findTraineeSlot(trainee, hallAssigns) {
+    let best = null;
+    for (const a of hallAssigns) {
+      const s = ceilToSlot(Math.max(trainee.win.start, a.start));
+      const e = Math.min(trainee.win.end, a.end);
+      if (e - s < TRAINEE_WORK_MINUTES) continue;
+      if (!best || s < best.start) best = { start: s, end: s + TRAINEE_WORK_MINUTES };
+    }
+    return best;
+  }
+
+  function makeAssign(entry, role, start, end, flags) {
+    return Object.assign({
+      person: entry.person,
+      cell: entry.cell,
+      attribute: entry.attribute,
+      role,
+      start,
+      end,
+      isOpen: false,
+      isLast: false,
+      isTrainee: false,
+      overlapStart: false
+    }, flags);
+  }
+
+  function isRoleEligible(role, attribute) {
+    return attrPriority(role, attribute) > 0;
+  }
+
+  // 属性の優先順位を数値化する（大きいほど優先。リストに無い属性は0＝割当不可）。
+  function attrPriority(role, attribute) {
+    const list = role === "kitchen" ? KITCHEN_PRIORITY : HALL_PRIORITY;
+    const i = list.indexOf(attribute);
+    return i === -1 ? 0 : list.length - i;
+  }
+
+  // オープン・ラスト選定で実際に使う優先順位。属性による優先順位（attrPriority）をもとに、
+  // その週にすでにWEEKLY_PRIORITY_DROP_THRESHOLD回以上入っている人は優先順位を著しく下げる
+  // （割当不可＝0ではないため、他に候補がいない場合は依然として選ばれる）。
+  function effectiveAttrPriority(role, attribute, weeklyCount) {
+    const base = attrPriority(role, attribute);
+    if (base <= 0) return base; // そもそも割当不可の属性はそのまま
+    if (weeklyCount >= WEEKLY_PRIORITY_DROP_THRESHOLD) return WEEKLY_PRIORITY_PENALTY;
+    return base;
+  }
+
+  // 週ごとの出勤回数（weeklyShiftCount）から、その人の今週分の回数を取り出す。
+  function weeklyCountOf(weeklyShiftCount, personId, weekIndex) {
+    const arr = weeklyShiftCount[personId];
+    return (arr && arr[weekIndex]) || 0;
+  }
+
+  // 9.9節「曜日ごとの必要人数」。未設定の場合は従来のハードコード値（厨房2・ホール4）にフォールバックする。
+  function requiredCount(role, weekday) {
+    const conf = (state.shiftParams.requiredCountByWeekday || {})[role] || {};
+    const n = Number(conf[weekday]);
+    if (!isFinite(n) || n <= 0) return DEFAULT_REQUIRED_COUNTS[role];
+    return n;
+  }
+
+  function getOpenTime(weekday) {
+    return (state.shiftParams.openTimeByWeekday || {})[weekday] || "";
+  }
+
+  function getCloseTime(weekday) {
+    return (state.shiftParams.closeTimeByWeekday || {})[weekday] || "";
+  }
+
+  function ceilToSlot(minutes) {
+    return Math.ceil(minutes / SLOT_MINUTES) * SLOT_MINUTES;
+  }
+
+  function parseTimeToMinutes(str) {
+    if (!str) return null;
+    const m = String(str).match(/(\d{1,2}):(\d{2})/);
+    if (!m) return null;
+    return Number(m[1]) * 60 + Number(m[2]);
+  }
+
+  // タイムテーブル上の分数を時刻表記にする（24:30 のように24時以降も表示する）。
+  function formatMinutes(minutes) {
+    if (minutes === null || minutes === undefined) return "";
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${pad(h)}:${pad(m)}`;
+  }
+
+  // ---------- 手動編集（氏名のドラッグ＆ドロップ） ----------
+  // 厨房・ホール・料理長の氏名を白抜き灰色の枠で囲み、空きマスへドラッグして移動できる。
+  // マウスでもスマホのタッチでも動くよう、HTML5 DnD ではなくポインターイベントで実装している。
+  // ドロップ先に近づくと最寄りの空きマスが強調され、氏名の枠がそのマスへ吸着する。
+
+  // 移動を許可したうえで、希望と食い違う氏名を赤枠で知らせるための警告を求める。
+  function buildFrameWarnings(gen) {
+    const warnings = {};
+    if (!gen) return warnings;
+
+    for (const dateIso of Object.keys(gen.assignment)) {
+      const day = gen.assignment[dateIso];
+      if (!day) continue;
+      const tt = { openMin: day.openMin, closeMin: day.closeMin };
+
+      const items = [];
+      (day.chief || []).forEach((pick, idx) => items.push({ role: "chief", idx, person: pick.person, assign: null }));
+      ["kitchen", "hall", "prep"].forEach(role => {
+        (day[role] || []).forEach((a, idx) => { if (a) items.push({ role, idx, person: a.person, assign: a }); });
+      });
+
+      // 仕込みは厨房・ホールと兼ねられるため、同日の重複数には数えない（仕込みの枠自体は×・未入力のみ警告）
+      const perPerson = {};
+      items.forEach(it => { if (it.role !== "prep") perPerson[it.person.id] = (perPerson[it.person.id] || 0) + 1; });
+
+      for (const it of items) {
+        const msgs = [];
+        const cell = state.cells[it.person.id + "_" + dateIso];
+        if (!cell || !cell.mark) {
+          msgs.push("この日のシフト希望が未入力です");
+        } else if (cell.mark === "×") {
+          msgs.push("この日は出勤できない（×）希望です");
+        } else if (it.assign && it.role !== "prep") {
+          const win = buildAvailabilityWindow(cell, tt);
+          if (!win || it.assign.start < win.start || it.assign.end > win.end) {
+            msgs.push("希望の時間帯から外れています");
+          }
+        }
+        if (it.role !== "prep" && perPerson[it.person.id] > 1) msgs.push("同じ日に複数の枠に入っています");
+        if (msgs.length > 0) warnings[frameKey({ dateIso, role: it.role, idx: it.idx })] = msgs.join(" / ");
+      }
+    }
+    return warnings;
+  }
+
+  // 手動編集済みのシフトを作り直す操作の前に確認する（編集内容は破棄される）
+  function confirmDiscardEdits(actionLabel) {
+    const gen = getValidGen();
+    if (!gen || !gen.edited) return true;
+    return confirm(`手動で編集した内容があります。${actionLabel}と、編集内容は失われます。続けますか？`);
+  }
+
+  function weekdayOfIso(dateIso) {
+    return new Date(dateIso + "T00:00:00").getDay();
+  }
+
+  function trimTrailingNulls(arr) {
+    while (arr.length > 0 && !arr[arr.length - 1]) arr.pop();
+  }
+
+  // 移動後に、その日のラスト表示・人手不足(HELP)を厨房・ホールの内容から再計算する
+  function refreshDayDerived(day, dateIso) {
+    trimTrailingNulls(day.kitchen);
+    trimTrailingNulls(day.hall);
+    if (day.prep) trimTrailingNulls(day.prep);
+    day.lastKitchen = day.kitchen.find(a => a && a.isLast) || null;
+    day.lastHall = day.hall.find(a => a && a.isLast) || null;
+    const weekday = weekdayOfIso(dateIso);
+    const countOf = list => list.filter(a => a && !a.isTrainee).length;
+    day.shortage = countOf(day.kitchen) < requiredCount("kitchen", weekday)
+      || countOf(day.hall) < requiredCount("hall", weekday);
+  }
+
+  // 移動先の日・役割に合わせた割当データを作る。
+  // 日をまたぐ場合は、勤務時間の長さを保ったまま移動先のオープン〜クローズの範囲に収める。
+  function convertToAssign(item, src, dst, dstDay) {
+    const open = dstDay.openMin;
+    const close = dstDay.closeMin;
+
+    if (src.role === "chief") {
+      // 料理長 → 厨房・ホール：申告開始時刻（無ければオープン）から既定の勤務時間
+      const cell = item.cell || {};
+      let start = parseTimeToMinutes(cell.start);
+      if (start === null || start < open || start >= close) start = open;
+      return {
+        person: item.person,
+        cell,
+        attribute: item.person.attribute || "指定なし",
+        role: dst.role,
+        start,
+        end: Math.min(close, start + DEFAULT_WORK_MINUTES),
+        isOpen: false,
+        isLast: false,
+        isTrainee: false,
+        overlapStart: false
+      };
+    }
+
+    const a = Object.assign({}, item);
+    a.role = dst.role;
+    a.cell = state.cells[a.person.id + "_" + dst.dateIso] || a.cell;
+    const dayChanged = src.dateIso !== dst.dateIso;
+    const roleChanged = src.role !== dst.role;
+
+    if (dayChanged) {
+      const length = a.end - a.start;
+      a.start = Math.min(Math.max(a.start, open), close - SLOT_MINUTES);
+      a.end = Math.min(a.start + length, close);
+    }
+    if (dayChanged || roleChanged) {
+      a.isOpen = false;
+      a.overlapStart = false;
+      if (a.isLast) {
+        // 移動先にすでにラスト担当がいる場合はラストの印を外す
+        const taken = (dstDay[dst.role] || []).some(x => x && x.isLast);
+        a.isLast = !taken;
+        if (a.isLast) a.end = close;
+      }
+    }
+    return a;
+  }
+
+  // src の氏名を dst（空きマス）へ移す。移せたら true。
+  function moveShiftItem(src, dst) {
+    const gen = getValidGen();
+    if (!gen) return false;
+    const srcDay = gen.assignment[src.dateIso];
+    const dstDay = gen.assignment[dst.dateIso];
+    if (!srcDay || !dstDay) return false;
+
+    let item;
+    if (src.role === "chief") {
+      item = srcDay.chief[src.idx];
+      if (!item) return false;
+      srcDay.chief.splice(src.idx, 1);
+    } else {
+      item = srcDay[src.role][src.idx];
+      if (!item) return false;
+      srcDay[src.role][src.idx] = null;
+    }
+
+    let placedIdx;
+    if (dst.role === "chief") {
+      const cell = state.cells[item.person.id + "_" + dst.dateIso] || { mark: "", start: "", end: "", wish: "" };
+      dstDay.chief.push({ person: item.person, cell });
+      placedIdx = dstDay.chief.length - 1;
+    } else {
+      const arr = dstDay[dst.role];
+      while (arr.length < dst.slot) arr.push(null);
+      arr[dst.slot] = convertToAssign(item, src, dst, dstDay);
+      placedIdx = dst.slot;
+    }
+
+    refreshDayDerived(srcDay, src.dateIso);
+    if (dst.dateIso !== src.dateIso) refreshDayDerived(dstDay, dst.dateIso);
+    gen.edited = true;
+    saveState();
+    renderTable();
+
+    const placed = tableWrap.querySelector(
+      `.name-frame[data-src-date="${dst.dateIso}"][data-src-role="${dst.role}"][data-src-idx="${placedIdx}"]`
+    );
+    if (placed) placed.classList.add("just-dropped");
+    return true;
+  }
+
+  function setupDrag() {
+    tableWrap.addEventListener("pointerdown", e => {
+      if (drag) return;
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      const frame = e.target.closest(".name-frame");
+      if (!frame || !getValidGen()) return;
+      e.preventDefault();
+      const rect = frame.getBoundingClientRect();
+      drag = {
+        frame,
+        pointerId: e.pointerId,
+        src: { dateIso: frame.dataset.srcDate, role: frame.dataset.srcRole, idx: Number(frame.dataset.srcIdx) },
+        originTd: frame.closest("td"),
+        startX: e.clientX, startY: e.clientY,
+        x: e.clientX, y: e.clientY,
+        offX: e.clientX - rect.left, offY: e.clientY - rect.top,
+        active: false, ghost: null, targets: [], target: null, raf: 0
+      };
+    });
+
+    window.addEventListener("pointermove", e => {
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      drag.x = e.clientX;
+      drag.y = e.clientY;
+      if (!drag.active && Math.hypot(drag.x - drag.startX, drag.y - drag.startY) >= DRAG_THRESHOLD_PX) {
+        beginDrag();
+      }
+      if (drag.active) e.preventDefault();
+    }, { passive: false });
+
+    window.addEventListener("pointerup", e => {
+      if (drag && e.pointerId === drag.pointerId) endDrag(true);
+    });
+    window.addEventListener("pointercancel", e => {
+      if (drag && e.pointerId === drag.pointerId) endDrag(false);
+    });
+    window.addEventListener("keydown", e => {
+      if (e.key === "Escape" && drag) endDrag(false);
+    });
+
+    // 各ブロック最下段の「＋」ボタン：シフト追加ポップアップ（編集ポップアップと同じUI）を開く
+    tableWrap.addEventListener("click", e => {
+      const btn = e.target.closest(".add-shift-btn");
+      if (!btn || !getValidGen()) return;
+      openEditPopup({ dateIso: btn.dataset.addDate, role: btn.dataset.addRole, idx: null, add: true });
+    });
+  }
+
+  function beginDrag() {
+    const d = drag;
+    d.active = true;
+
+    // 空きマス＋（元のマスにその人しかいなければ）元のマスがドロップ先の候補
+    d.targets = Array.from(tableWrap.querySelectorAll("td[data-drop-role]")).filter(td =>
+      td.classList.contains("drop-empty")
+      || (td === d.originTd && td.querySelectorAll(".name-frame").length === 1)
+    );
+    d.targets.forEach(td => td.classList.add("drop-candidate"));
+
+    const ghost = d.frame.cloneNode(true);
+    const cs = getComputedStyle(d.frame);
+    ghost.className = "drag-ghost" + (d.frame.classList.contains("warn") ? " warn" : "");
+    ghost.removeAttribute("title");
+    ghost.style.fontSize = cs.fontSize;
+    ghost.style.fontWeight = cs.fontWeight;
+    ghost.style.lineHeight = cs.lineHeight;
+    // スマホ幅でシートが縮小表示されているときは、影も同じ倍率で縮小する（中身の文字サイズは縮小前の値をコピーするため）
+    const zoom = sheetZoomOf(d.frame);
+    ghost.style.width = (d.frame.getBoundingClientRect().width / zoom) + "px";
+    if (zoom !== 1) {
+      ghost.style.transform = `scale(${zoom})`;
+      ghost.style.transformOrigin = "0 0";
+    }
+    // 枠の中の氏名・時間・研修バッジは .a4-sheet 配下のCSSが効かないため、元の見た目をコピーする
+    const srcEls = d.frame.querySelectorAll("*");
+    ghost.querySelectorAll("*").forEach((el, i) => {
+      const s = getComputedStyle(srcEls[i]);
+      el.style.fontSize = s.fontSize;
+      el.style.fontWeight = s.fontWeight;
+      el.style.lineHeight = s.lineHeight;
+      el.style.color = s.color;
+      el.style.display = s.display;
+      el.style.margin = s.margin;
+      el.style.padding = s.padding;
+      el.style.border = s.border;
+      el.style.borderRadius = s.borderRadius;
+      el.style.verticalAlign = s.verticalAlign;
+      el.style.letterSpacing = s.letterSpacing;
+      el.style.whiteSpace = s.whiteSpace;
+    });
+    document.body.appendChild(ghost);
+    d.ghost = ghost;
+
+    d.frame.classList.add("drag-origin");
+    document.body.classList.add("dragging");
+    dragTick();
+  }
+
+  // 毎フレーム：端に近ければ自動スクロールし、最寄りの空きマスを探して氏名の枠を吸着/追従させる
+  function dragTick() {
+    const d = drag;
+    if (!d || !d.active) return;
+
+    const edge = 70;
+    if (d.y < edge) window.scrollBy(0, -14);
+    else if (d.y > window.innerHeight - edge) window.scrollBy(0, 14);
+
+    let best = null;
+    let bestDist = Infinity;
+    for (const td of d.targets) {
+      const r = td.getBoundingClientRect();
+      const dx = Math.max(r.left - d.x, 0, d.x - r.right);
+      const dy = Math.max(r.top - d.y, 0, d.y - r.bottom);
+      const dist = Math.hypot(dx, dy);
+      if (dist < bestDist) { bestDist = dist; best = td; }
+    }
+    const next = best && bestDist <= SNAP_RADIUS_PX ? best : null;
+    if (next !== d.target) {
+      if (d.target) d.target.classList.remove("drop-active");
+      if (next) next.classList.add("drop-active");
+      d.target = next;
+      d.ghost.classList.toggle("snapping", !!next);
+    }
+
+    const gr = d.ghost.getBoundingClientRect();   // 縮小（transform）後の見た目の大きさ
+    const gw = gr.width;
+    const gh = gr.height;
+    if (next) {
+      const r = next.getBoundingClientRect();
+      d.ghost.style.left = (r.left + (r.width - gw) / 2) + "px";
+      d.ghost.style.top = (r.top + (r.height - gh) / 2) + "px";
+    } else {
+      d.ghost.style.left = (d.x - d.offX) + "px";
+      d.ghost.style.top = (d.y - d.offY) + "px";
+    }
+    d.raf = requestAnimationFrame(dragTick);
+  }
+
+  function endDrag(commit) {
+    const d = drag;
+    drag = null;
+    if (!d) return;
+    if (!d.active) {
+      // 動かさずに離しただけ（タップ）→ 編集ポップアップを開く
+      if (commit) openEditPopup(d.src);
+      return;
+    }
+
+    cancelAnimationFrame(d.raf);
+    d.ghost.remove();
+    d.frame.classList.remove("drag-origin");
+    document.body.classList.remove("dragging");
+    d.targets.forEach(td => td.classList.remove("drop-candidate", "drop-active"));
+
+    const target = commit ? d.target : null;
+    if (!target || target === d.originTd) return; // 候補外で離した／元のマスに戻した場合は何もしない
+    moveShiftItem(d.src, {
+      dateIso: target.dataset.dropDate,
+      role: target.dataset.dropRole,
+      slot: Number(target.dataset.dropSlot)
+    });
+  }
+
+  // ---------- 手動編集（枠をタップすると開く編集ポップアップ） ----------
+  // 氏名＋時間の枠をタップ（ドラッグせずに離す）すると、画面中央にポップアップを出し、
+  // ①シフトの削除 ②人の変更 ③時間の変更 ④その日に○を付けている人の一覧表示、ができる。
+  function openEditPopup(src) {
+    const gen = getValidGen();
+    if (!gen) return;
+    const day = gen.assignment[src.dateIso];
+    if (!day) return;
+    const isChief = src.role === "chief";
+    const isAdd = !!src.add;
+    if (isChief && !day.chief) day.chief = [];
+    if (src.role === "prep" && !day.prep) day.prep = []; // 仕込みの枠を持たない古い保存結果への対応
+    if (document.querySelector(".overlay.edit-overlay")) return;
+
+    const blankCell = { mark: "", start: "", end: "", wish: "" };
+    const cellOf = p => state.cells[p.id + "_" + src.dateIso] || null;
+    const staffList = state.staff.filter(p => p.name && p.name.trim() !== "");
+
+    const placedIds = new Set();
+    (day.chief || []).forEach(x => placedIds.add(x.person.id));
+    ["kitchen", "hall", "prep"].forEach(r => (day[r] || []).forEach(a => { if (a) placedIds.add(a.person.id); }));
+
+    // 追加モードでは、まだ配置されていない「この日○の人」を初期値にした新規シフトの下書きを使う
+    let item;
+    if (isAdd) {
+      if (staffList.length === 0) return;
+      const isCircled = p => { const c = cellOf(p); return !!c && c.mark === "○"; };
+      const person = (isChief ? staffList.find(p => p.attribute === "料理長" && isCircled(p) && !placedIds.has(p.id)) : null)
+        || staffList.find(p => isCircled(p) && !placedIds.has(p.id))
+        || staffList.find(isCircled)
+        || staffList[0];
+      const start = day.openMin;
+      // 料理長は氏名＋終了時刻（任意）だけを持つ
+      item = isChief ? { person, cell: cellOf(person) || blankCell } : {
+        person,
+        cell: cellOf(person) || blankCell,
+        attribute: person.attribute || "指定なし",
+        role: src.role,
+        start,
+        end: Math.min(day.closeMin, start + DEFAULT_WORK_MINUTES),
+        isOpen: false,
+        isLast: false,
+        isTrainee: (person.attribute || "指定なし") === "研修",
+        overlapStart: false
+      };
+    } else {
+      item = isChief ? (day.chief || [])[src.idx] : (day[src.role] || [])[src.idx];
+      if (!item) return;
+      if (!staffList.some(p => p.id === item.person.id)) staffList.push(item.person);
+    }
+
+    const dateObj = new Date(src.dateIso + "T00:00:00");
+    const dateLabel = `${formatMonthDay(dateObj)}（${WEEKDAY_LABELS[dateObj.getDay()]}）`;
+    const roleLabel = isChief ? "料理長" : src.role === "kitchen" ? "厨房" : src.role === "prep" ? "仕込み" : "ホール";
+
+    const circled = staffList.filter(p => { const c = cellOf(p); return c && c.mark === "○"; });
+    const others = staffList.filter(p => !circled.includes(p));
+
+    const personOption = p => {
+      const c = cellOf(p);
+      const tag = c && c.mark === "×" ? "（×）" : (!c || !c.mark) ? "（未入力）" : "";
+      return `<option value="${escapeHtml(p.id)}"${p.id === item.person.id ? " selected" : ""}>${escapeHtml(p.name)}${tag}</option>`;
+    };
+    const personSelectHtml = `<select id="editPerson">`
+      + (circled.length ? `<optgroup label="この日○の人">${circled.map(personOption).join("")}</optgroup>` : "")
+      + (others.length ? `<optgroup label="その他">${others.map(personOption).join("")}</optgroup>` : "")
+      + `</select>`;
+
+    let timeHtml;
+    if (isChief) {
+      const cur = chiefEndText(item);
+      const opts = [""].concat(END_OPTIONS);
+      if (!opts.includes(cur)) opts.push(cur);
+      timeHtml = `<div class="popup-field"><label>終了時刻（何時まで）</label><select id="editChiefEnd">`
+        + opts.map(o => `<option value="${escapeHtml(o)}"${o === cur ? " selected" : ""}>${o === "" ? "指定なし" : escapeHtml(o)}</option>`).join("")
+        + `</select></div>`;
+    } else {
+      const grid = [];
+      // 仕込みはオープン前から入ることがあるため、選べる開始時刻を3時間前まで広げる
+      const gridFrom = src.role === "prep" ? Math.max(0, day.openMin - 180) : day.openMin;
+      for (let t = gridFrom; t <= day.closeMin; t += SLOT_MINUTES) grid.push(t);
+      const minuteOptions = selected => {
+        const list = selected == null || grid.includes(selected) ? grid : grid.concat([selected]).sort((a, b) => a - b);
+        return list.map(t => `<option value="${t}"${t === selected ? " selected" : ""}>${formatMinutes(t)}</option>`).join("");
+      };
+      // 追加時の終了は「空白／ラスト」の二択（空白＝終了時刻を表示しない通常の勤務）
+      const endSelectHtml = `<select id="editEnd"><option value=""${item.isLast ? "" : " selected"}></option><option value="last"${item.isLast ? " selected" : ""}>ラスト</option></select>`;
+      timeHtml = `<div class="popup-field"><label>勤務時間</label><div class="time-row">`
+        + `<select id="editStart">${minuteOptions(item.start)}</select><span>〜</span>`
+        + endSelectHtml + `</div></div>`;
+    }
+
+    const circleListHtml = circled.length
+      ? circled.map(p => {
+          const c = cellOf(p);
+          const cond = [c.start, c.end, c.wish].filter(Boolean).join(" ");
+          return `<li>${escapeHtml(p.name)}`
+            + (cond ? `<span class="circle-cond">${escapeHtml(cond)}</span>` : "")
+            + (placedIds.has(p.id) ? `<span class="circle-placed">配置済</span>` : "")
+            + `</li>`;
+        }).join("")
+      : `<li class="circle-none">この日に○を付けている人はいません</li>`;
+
+    const overlay = document.createElement("div");
+    overlay.className = "overlay edit-overlay";
+    overlay.innerHTML = `
+      <div class="popup edit-popup">
+        <div class="popup-header">
+          <div class="p-date">${dateLabel}</div>
+          <div class="p-sub">${roleLabel}のシフトを${isAdd ? "追加" : "編集"}</div>
+        </div>
+        <div class="popup-field"><label>担当者</label>${personSelectHtml}</div>
+        ${timeHtml}
+        <div class="popup-field">
+          <label>この日に○を付けている人（${circled.length}人）</label>
+          <ul class="circle-list">${circleListHtml}</ul>
+        </div>
+        <div class="popup-field"><div class="error-text" id="editError"></div></div>
+        <div class="popup-footer">
+          <button class="cancel-btn">キャンセル</button>
+          ${isAdd ? "" : `<button class="delete-btn">削除</button>`}
+          <button class="confirm-btn">決定</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const popup = overlay.querySelector(".popup");
+    const errorText = popup.querySelector("#editError");
+
+    function onKey(e) { if (e.key === "Escape") close(); }
+    function close() {
+      window.removeEventListener("keydown", onKey);
+      overlay.remove();
+    }
+    function commitEdit() {
+      gen.edited = true;
+      refreshDayDerived(day, src.dateIso);
+      saveState();
+      close();
+      renderTable();
+    }
+
+    window.addEventListener("keydown", onKey);
+    overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
+    popup.querySelector(".cancel-btn").addEventListener("click", close);
+
+    const deleteBtn = popup.querySelector(".delete-btn");
+    if (deleteBtn) deleteBtn.addEventListener("click", () => {
+      if (!confirm(`${item.person.name} さんのこのシフトを削除しますか？`)) return;
+      if (isChief) day.chief.splice(src.idx, 1);
+      else day[src.role][src.idx] = null;
+      commitEdit();
+    });
+
+    popup.querySelector(".confirm-btn").addEventListener("click", () => {
+      const newPerson = staffList.find(p => p.id === popup.querySelector("#editPerson").value) || item.person;
+      const personChanged = newPerson.id !== item.person.id;
+
+      if (isChief) {
+        const prevEnd = chiefEndText(item);
+        if (personChanged) {
+          item.person = newPerson;
+          item.cell = cellOf(newPerson) || blankCell;
+          delete item.endOverride;
+        }
+        const endVal = popup.querySelector("#editChiefEnd").value;
+        if (endVal !== prevEnd) item.endOverride = endVal;
+        if (isAdd) day.chief.push(item);
+      } else {
+        const start = Number(popup.querySelector("#editStart").value);
+        let end;
+        const wasLast = !!item.isLast;
+        item.isLast = popup.querySelector("#editEnd").value === "last";
+        if (item.isLast) {
+          end = day.closeMin; // ラスト＝クローズまで
+        } else if (isAdd || wasLast) {
+          end = Math.min(day.closeMin, start + DEFAULT_WORK_MINUTES); // 空白＝既定の勤務時間（開始から4時間）
+        } else {
+          end = item.end; // もともと空白だった枠は終了時刻をそのまま維持
+        }
+        if (end <= start) {
+          errorText.textContent = "終了時刻は開始時刻より後にしてください";
+          return;
+        }
+        if (personChanged) {
+          item.person = newPerson;
+          item.cell = cellOf(newPerson) || blankCell;
+          item.attribute = newPerson.attribute || "指定なし";
+          item.isTrainee = item.attribute === "研修";
+        }
+        item.start = start;
+        item.end = end;
+        if (isAdd) {
+          // 空きの枠があれば上から埋め、無ければ末尾に足す
+          const arr = day[src.role];
+          const emptyIdx = arr.findIndex(a => !a);
+          if (emptyIdx >= 0) arr[emptyIdx] = item;
+          else arr.push(item);
+        }
+      }
+      commitEdit();
+    });
+  }
+
+  // ---------- 表示 ----------
+
+  // 形式が古い（タイムテーブル方式より前の）生成結果は未生成として扱い、再生成を促す
+  function getValidGen() {
+    return state.generatedShift
+      && state.generatedShift.version === GEN_VERSION
+      && state.generatedShift.startDate === state.startDate
+      ? state.generatedShift
+      : null;
+  }
+
+  function renderTable() {
+    const dates = getDateRange(state.startDate, DAYS_COUNT);
+    const gen = getValidGen();
+    frameWarnings = buildFrameWarnings(gen);
+
+    const manual = !!(gen && gen.manual);
+    document.getElementById("pageTitle").textContent = manual ? "シフトを自作する" : "自動シフト作成";
+    document.title = manual ? "シフトを自作する" : "自動シフト作成";
+    regenerateBtn.textContent = manual ? "白紙に戻す" : "再生成";
+
+    if (state.staff.filter(p => p.name && p.name.trim() !== "").length === 0) {
+      tableWrap.innerHTML = `<p class="empty-note">スタッフが登録されていません。管理ページで先にスタッフを登録してください。</p>`;
+      availabilityWrap.innerHTML = "";
+      countSummaryWrap.innerHTML = "";
+      return;
+    }
+
+    // 1週間（7日）ごとにA4サイズのシートへ分割し、2枚を横並び（スマホは縦並び）で表示する
+    const week1 = dates.slice(0, 7);
+    const week2 = dates.slice(7, 14);
+    const surnameCounts = computeSurnameCounts(state.staff.filter(p => p.name && p.name.trim() !== ""));
+
+    tableWrap.innerHTML = `<div class="sheets-wrap">${buildSheetHtml(week1, gen, surnameCounts)}${buildSheetHtml(week2, gen, surnameCounts)}</div>`;
+    layoutSheetRows();
+    renderCountSummaryTable(dates, gen);
+    renderAvailabilityTable(dates);
+
+    tableWrap.querySelectorAll(".biz-toggle").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const dateIso = btn.dataset.toggleDate;
+        if (!confirmDiscardEdits("営業／定休日を切り替える")) return;
+        toggleClosedDate(dateIso);
+        state.generatedShift = null;
+        saveState();
+        renderTable();
+      });
+    });
+
+    tableWrap.querySelectorAll(".prep-input").forEach(input => {
+      input.addEventListener("change", () => {
+        state.prepNotes[input.dataset.prepDate] = input.value;
+        saveState();
+      });
+    });
+  }
+
+  // シートの縦方向のサイズ：各役割のマスの大きさは「名前の枠が入る個数」で決まる
+  // （仕込み2枠・厨房3枠・ホール5枠。行の高さはCSSの`tr[data-block]`・`.prep-cell`で指定）。
+  // 比率での配分はせず、余った高さはシートの一番下に余白として残す。
+  // この関数は、人数が溢れた日の中身を決まった高さの中へ収めるためだけに実行する。
+  function layoutSheetRows() {
+    tableWrap.querySelectorAll(".a4-sheet").forEach(sheet => {
+      const table = sheet.querySelector("table");
+      if (!table) return;
+      // 実測は縮小なし（等倍）の状態で行い、最後に画面幅に合わせた縮小率を設定する
+      sheet.style.removeProperty("--fit-zoom");
+      const mergedCells = Array.from(sheet.querySelectorAll("td.block-merged"));
+      mergedCells.forEach(td => td.classList.remove("tight"));
+      // 人数が溢れたマス（overflow-cell）は、行の高さを広げる原因にしない：
+      // 実測の間だけ中身を1枠分の高さに切り詰め、行の高さは溢れの無い状態で決める。
+      // 実測後に、決まった行の高さの中へ枠同士の間隔を調整して収める。
+      const overflowCells = Array.from(sheet.querySelectorAll("td.overflow-cell"));
+      const OVERFLOW_MEASURE_HEIGHT = 40; // 通常の1枠（氏名＋時刻）のおおよその高さ(px)
+      overflowCells.forEach(td => {
+        td.classList.remove("tight");
+        const inner = td.querySelector(".slot-inner");
+        const items = td.querySelector(".slot-items");
+        if (inner) inner.style.height = "";
+        if (items) { items.style.maxHeight = OVERFLOW_MEASURE_HEIGHT + "px"; items.style.overflow = "hidden"; }
+      });
+
+      // 結合マス（人数が行数を超えた日）：枠同士の間隔を0にしても入らないときだけ文字を詰める
+      mergedCells.forEach(td => {
+        const items = td.querySelector(".block-items");
+        if (items && items.scrollHeight > items.clientHeight + 0.5) td.classList.add("tight");
+      });
+
+      // 決まった行の高さの中に溢れたマスの中身を収める（枠同士の間隔で調整し、それでも入らなければ文字を詰める）
+      overflowCells.forEach(td => {
+        const inner = td.querySelector(".slot-inner");
+        const items = td.querySelector(".slot-items");
+        if (!inner || !items) return;
+        const cs = getComputedStyle(td);
+        const target = td.getBoundingClientRect().height
+          - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+          - parseFloat(cs.borderTopWidth) - parseFloat(cs.borderBottomWidth);
+        items.style.maxHeight = "";
+        items.style.overflow = "";
+        inner.style.height = target + "px";
+        if (inner.scrollHeight > inner.clientHeight + 0.5) td.classList.add("tight");
+      });
+
+      // スマホ幅：PCと同じ幅で組んだシートを、画面幅に収まるよう全体ごと縮小する（PCでは縮小しない）
+      const avail = sheet.parentElement.clientWidth;
+      const natural = sheet.offsetWidth;
+      if (natural > 0 && avail > 0 && avail < natural) {
+        sheet.style.setProperty("--fit-zoom", String(avail / natural));
+      }
+    });
+  }
+  // シートに掛かっている縮小率（ドラッグ中の枠の影を同じ大きさで表示するため）
+  function sheetZoomOf(el) {
+    const sheet = el.closest(".a4-sheet");
+    if (!sheet || !window.matchMedia("screen and (max-width: 900px)").matches) return 1;
+    return parseFloat(sheet.style.getPropertyValue("--fit-zoom")) || 1;
+  }
+  window.addEventListener("resize", () => {
+    if (tableWrap.querySelector(".a4-sheet")) layoutSheetRows();
+  });
+
+  // 生成されたシフトで、各スタッフが週ごとに何回入っているかを集計して表示する（表示のみ）。
+  // 料理長・厨房・ホール（研修含む）のいずれかに入っている日を1回と数える（同じ日に複数枠でも1回）。
+  function renderCountSummaryTable(dates, gen) {
+    const visibleStaff = state.staff.filter(p => p.name && p.name.trim() !== "");
+    if (!gen || visibleStaff.length === 0) {
+      countSummaryWrap.innerHTML = `<p class="empty-note" style="margin-top:0;">シフトが生成されると、ここに集計が表示されます。</p>`;
+      return;
+    }
+
+    const weekCount = Math.ceil(dates.length / 7);
+    const counts = {}; // personId -> [週ごとの回数]
+    visibleStaff.forEach(p => { counts[p.id] = new Array(weekCount).fill(0); });
+
+    dates.forEach((d, dayIndex) => {
+      const day = gen.assignment[toIsoDate(d)];
+      if (!day) return;
+      const weekIndex = Math.floor(dayIndex / 7);
+      const ids = new Set();
+      (day.chief || []).forEach(pick => { if (pick) ids.add(pick.person.id); });
+      ["kitchen", "hall", "prep"].forEach(role => {
+        (day[role] || []).forEach(a => { if (a) ids.add(a.person.id); });
+      });
+      ids.forEach(id => { if (counts[id]) counts[id][weekIndex]++; });
+    });
+
+    let html = "<table><thead><tr><th>名前</th>";
+    for (let w = 0; w < weekCount; w++) html += `<th>${w + 1}週目</th>`;
+    html += "</tr></thead><tbody>";
+    for (const person of visibleStaff) {
+      html += `<tr><td class="name-col">${escapeHtml(person.name)}</td>`;
+      counts[person.id].forEach(n => { html += `<td>${n}</td>`; });
+      html += "</tr>";
+    }
+    html += "</tbody></table>";
+    countSummaryWrap.innerHTML = html;
+  }
+
+  // 生成したシフトの下に、全スタッフのシフト希望登録状況（○/✕・時間・希望）を
+  // そのまま一覧表示する（変更不可。クリックイベントは一切付けない）。
+  function renderAvailabilityTable(dates) {
+    const visibleStaff = state.staff.filter(p => p.name && p.name.trim() !== "");
+    if (visibleStaff.length === 0) {
+      availabilityWrap.innerHTML = "";
+      return;
+    }
+
+    let html = "<table><thead><tr><th>名前</th>";
+    for (const d of dates) {
+      const wd = d.getDay();
+      const cls = wd === 0 ? "sun" : wd === 6 ? "sat" : "";
+      html += `<th class="${cls}">${formatMonthDay(d)}<br>${WEEKDAY_LABELS[wd]}</th>`;
+    }
+    html += "</tr></thead><tbody>";
+
+    for (const person of visibleStaff) {
+      html += `<tr><td class="name-col">${escapeHtml(person.name)}</td>`;
+      for (const d of dates) {
+        const cellKey = person.id + "_" + toIsoDate(d);
+        html += `<td>${renderAvailabilityCellReadonly(cellKey)}</td>`;
+      }
+      html += "</tr>";
+    }
+    html += "</tbody></table>";
+
+    availabilityWrap.innerHTML = html;
+  }
+
+  function renderAvailabilityCellReadonly(cellKey) {
+    const cell = state.cells[cellKey];
+    let stateClass = "";
+    let inner;
+    if (!cell || !cell.mark) {
+      inner = `<span class="avail-placeholder">未入力</span>`;
+    } else if (cell.mark === "×") {
+      stateClass = "avail-cross";
+      inner = `<img class="avail-mark-img-big" src="${ICON_CROSS}" alt="×">`;
+    } else {
+      const timeLine = combineTime(cell.start, cell.end);
+      const hasExtra = !!(timeLine || cell.wish);
+      if (hasExtra) {
+        stateClass = "avail-circle-partial";
+        inner = `<img class="avail-mark-img-small" src="${ICON_CIRCLE}" alt="○">`;
+        if (timeLine) inner += `<div class="avail-sub-line">${escapeHtml(timeLine)}</div>`;
+        if (cell.wish) inner += `<div class="avail-sub-line">${escapeHtml(cell.wish)}</div>`;
+      } else {
+        stateClass = "avail-circle-full";
+        inner = `<img class="avail-mark-img-big" src="${ICON_CIRCLE}" alt="○">`;
+      }
+    }
+    return `<div class="avail-cell ${stateClass}">${inner}</div>`;
+  }
+
+  function buildSheetHtml(weekDates, gen, surnameCounts) {
+    // 行数は厨房3行・ホール5行で固定する（上の枠から詰めて入れ、人数がこれを超える日は
+    // その列の該当役割だけ文字を小さく詰め、一番下のセルに溢れた人をまとめて収める）。
+    const kitchenCount = ROW_COUNTS.kitchen;
+    const hallCount = ROW_COUNTS.hall;
+
+    const kitchenRows = Array.from({ length: kitchenCount }, (_, i) => ({
+      role: "kitchen",
+      label: i === 0 ? "厨房" : null,
+      rowspan: i === 0 ? kitchenCount : undefined
+    }));
+    const hallRows = Array.from({ length: hallCount }, (_, i) => ({
+      role: "hall",
+      label: i === 0 ? "ホール" : null,
+      rowspan: i === 0 ? hallCount : undefined
+    }));
+
+    const bodyRows = [
+      { role: "chief", label: "", rowspan: 1, labelClass: "role-label-flat" },
+      { role: "prep", label: "仕込み", rowspan: 1, labelClass: "role-label-prep" },
+      ...kitchenRows,
+      ...hallRows,
+      { role: "lastKitchen", label: "ラスト", rowspan: 2, labelClass: "role-label-last" },
+      { role: "lastHall", label: null },
+      { role: "help", label: "", rowspan: 1 }
+    ];
+    const totalBodyRows = bodyRows.length;
+
+    let html = `<div class="a4-sheet">`;
+    html += `<div class="sheet-title-box">シフト表</div>`;
+    html += `<div class="sheet-range">${formatMonthDay(weekDates[0])} 〜 ${formatMonthDay(weekDates[weekDates.length - 1])}</div>`;
+    html += "<table><thead>";
+    html += '<tr><th class="role-col">役割</th>';
+    for (const d of weekDates) {
+      const wd = d.getDay();
+      const cls = wd === 0 ? "sun" : wd === 6 ? "sat" : "";
+      html += `<th class="${cls}">${formatMonthDay(d)}<br>${WEEKDAY_LABELS[wd]}</th>`;
+    }
+    html += "</tr>";
+
+    html += '<tr class="biz-row"><th></th>';
+    for (const d of weekDates) {
+      const dateIso = toIsoDate(d);
+      const closed = isClosedDate(dateIso);
+      const tempClosed = isTemporarilyClosed(dateIso);
+      const label = tempClosed ? "臨時休業" : closed ? "定休日" : "営業";
+      html += `<th><button class="biz-toggle ${closed ? "closed-day" : "open-day"}" data-toggle-date="${dateIso}" ${tempClosed ? "disabled" : ""}>${label}</button></th>`;
+    }
+    html += "</tr></thead><tbody>";
+
+    // 役割ごとの行カウンタ（厨房1人目/2人目、ホール1人目〜4人目を列挙するため）
+    const kitchenIdx = { count: 0 };
+    const hallIdx = { count: 0 };
+    let rowCursor = 0;
+
+    for (const row of bodyRows) {
+      html += (row.role === "prep" || row.role === "kitchen" || row.role === "hall") ? `<tr data-block="${row.role}">` : "<tr>";
+      if (row.label !== null) {
+        const labelClass = row.labelClass ? ` ${row.labelClass}` : "";
+        html += `<th class="role-label${labelClass}" rowspan="${row.rowspan}">${row.label}</th>`;
+      }
+
+      let subIndex = null;
+      if (row.role === "kitchen") { subIndex = kitchenIdx.count; kitchenIdx.count++; }
+      if (row.role === "hall") { subIndex = hallIdx.count; hallIdx.count++; }
+
+      for (const d of weekDates) {
+        const dateIso = toIsoDate(d);
+        const closed = isClosedDate(dateIso);
+
+        if (closed) {
+          if (rowCursor === 0) {
+            html += `<td class="closed-cell" rowspan="${totalBodyRows}"><span class="closed-mark">休</span></td>`;
+          }
+          continue;
+        }
+
+        if (row.role === "chief") {
+          const chiefDay = gen ? gen.assignment[dateIso] : null;
+          const chiefEmpty = !!chiefDay && !(chiefDay.chief && chiefDay.chief.length > 0);
+          html += `<td class="assign-cell chief-cell block-merged${dropClass(chiefEmpty)}"${dropAttrs(gen, dateIso, "chief", 0)}>${renderChiefCell(gen, dateIso, surnameCounts)}</td>`;
+          continue;
+        }
+
+        if (row.role === "prep") {
+          html += renderPrepCell(gen, dateIso, surnameCounts);
+          continue;
+        }
+
+        if (row.role === "lastKitchen" || row.role === "lastHall") {
+          const side = row.role === "lastKitchen" ? "kitchen" : "hall";
+          html += `<td class="assign-cell last-cell">${renderLastCell(gen, dateIso, side, surnameCounts)}</td>`;
+          continue;
+        }
+
+        if (row.role === "help") {
+          const day = gen ? gen.assignment[dateIso] : null;
+          const shortage = day && day.shortage && !gen.manual;
+          html += `<td class="assign-cell help-cell">${shortage ? '<span class="help-text">HELP</span>' : ''}</td>`;
+          continue;
+        }
+
+        const rowCount = row.role === "kitchen" ? kitchenCount : hallCount;
+        const pairClass = rowPositionClass(subIndex, rowCount);
+        const cell = renderRoleCell(gen, dateIso, d, row.role, subIndex, rowCount, surnameCounts);
+        if (cell.skip) continue; // 人数が行数を超えた日は、ブロック全体を1つの結合マスにしている
+        if (cell.merged) {
+          html += `<td class="assign-cell role-slot${cell.extraClass}" rowspan="${rowCount}">${cell.html}</td>`;
+          continue;
+        }
+        html += `<td class="assign-cell role-slot ${pairClass}${cell.extraClass}${dropClass(cell.empty)}"${dropAttrs(gen, dateIso, row.role, subIndex)}>${cell.html}</td>`;
+      }
+
+      html += "</tr>";
+      rowCursor++;
+    }
+
+    html += "</tbody></table></div>";
+    return html;
+  }
+
+  // 同じ役割がrowspanで縦に連続するセル群のうち、どの位置か（上端／中間／下端）を判定し、
+  // 間の罫線を消すためのクラス名を返す（1行だけの役割では罫線を消さない）。
+  function rowPositionClass(index, total) {
+    if (total <= 1) return "";
+    if (index === 0) return "pair-top";
+    if (index === total - 1) return "pair-bottom";
+    return "pair-mid";
+  }
+
+  // 仕込み欄：担当者の枠（氏名＋開始時刻）を追加・編集・削除できる。枠が1つも無い日は、従来の自由記述の
+  // テキスト欄を表示する（枠を追加するとテキスト欄は隠れるが、入力済みの内容は state.prepNotes に残る）。
+  // 枠の置き方・間隔の調整・「＋」ボタンの位置は厨房・ホールの結合マス（.block-merged）と同じ。
+  function renderPrepCell(gen, dateIso, surnameCounts) {
+    const day = gen ? gen.assignment[dateIso] : null;
+    const list = (day && day.prep) || [];
+    const frames = [];
+    list.forEach((a, idx) => {
+      if (a) frames.push(assignBlockHtml(a, surnameCounts, { dateIso, role: "prep", idx }));
+    });
+    const compactClass = frames.length > 2 ? " compact-cell" : ""; // 2枠を超えたら文字を小さく
+    const body = frames.length > 0
+      ? frames.join("")
+      : `<input type="text" class="prep-input" data-prep-date="${dateIso}" value="${escapeHtml(state.prepNotes[dateIso] || "")}" placeholder="">`;
+    const addBtn = day
+      ? `<button type="button" class="add-shift-btn" data-add-date="${dateIso}" data-add-role="prep" title="シフトを追加" aria-label="シフトを追加">+</button>`
+      : "";
+    return `<td class="assign-cell prep-cell block-merged${compactClass}"><div class="block-inner"><div class="block-items">${body}</div>${addBtn}</div></td>`;
+  }
+
+  // 厨房・ホールの1マス分を描画する。
+  // 固定行数（厨房2・ホール4）を超える人数が割り当てられた日は、一番下の行のセルに
+  // 残り全員をまとめて表示し、そのセルだけ文字を小さくする（overflow-cell）。
+  function renderRoleCell(gen, dateIso, dateObj, roleKey, subIndex, rowCount, surnameCounts) {
+    if (!gen) return { html: `<span class="empty-note">未生成</span>`, extraClass: "" };
+
+    const day = gen.assignment[dateIso];
+    if (!day) return { html: "", extraClass: "" };
+
+    // 手動編集で空きができても元の位置を保つため、配列には null の空きが入り得る。
+    // idx は配列上の位置（ドラッグ元の特定に使う）。
+    const list = day[roleKey] || [];
+
+    // 人数が行数を超えた日は、マス（行）の高さ・ブロックの高さを広げず、ブロック全体を1つの結合マスにして
+    // その中に全員の枠を並べ、枠同士の間隔を詰めて収める（足りなければ layoutSheetRows が文字も詰める）。
+    if (list.filter(Boolean).length > rowCount) {
+      if (subIndex > 0) return { skip: true };
+      const frames = [];
+      list.forEach((a, idx) => {
+        if (a) frames.push(assignBlockHtml(a, surnameCounts, { dateIso, role: roleKey, idx }));
+      });
+      return {
+        merged: true,
+        extraClass: " block-merged compact-cell",
+        html: `<div class="block-inner"><div class="block-items">${frames.join("")}</div>`
+          + `<button type="button" class="add-shift-btn" data-add-date="${dateIso}" data-add-role="${roleKey}" title="シフトを追加" aria-label="シフトを追加">+</button></div>`
+      };
+    }
+
+    const isBottomRow = subIndex === rowCount - 1;
+    const items = [];
+    list.forEach((a, idx) => {
+      if (a && (isBottomRow ? idx >= subIndex : idx === subIndex)) items.push({ a, idx });
+    });
+    // 一番下のセルに2人以上溢れた日は、その日の列の該当役割のセル全てを縮小表示にする
+    const overflowCount = list.slice(rowCount - 1).filter(Boolean).length;
+    const compactClass = overflowCount > 1 ? " compact-cell" : "";
+
+    // 厨房・ホールそれぞれのブロックの一番下のマスには、シフトを追加する「＋」ボタンを置く
+    const withAddButton = inner => isBottomRow
+      ? `<div class="slot-inner"><div class="slot-items">${inner}</div>`
+        + `<button type="button" class="add-shift-btn" data-add-date="${dateIso}" data-add-role="${roleKey}" title="シフトを追加" aria-label="シフトを追加">+</button></div>`
+      : inner;
+
+    if (items.length === 0) {
+      // その曜日の必要人数の範囲内で埋まらなかった枠だけ「未定」を出す
+      const required = requiredCount(roleKey, dateObj.getDay());
+      return { html: withAddButton(subIndex < required && !gen.manual ? `<span class="assign-empty">未定</span>` : ""), extraClass: "", empty: true };
+    }
+
+    return {
+      html: withAddButton(items.map(it => assignBlockHtml(it.a, surnameCounts, { dateIso, role: roleKey, idx: it.idx })).join("")),
+      extraClass: compactClass + (items.length > 1 ? " overflow-cell" : ""),
+      empty: false
+    };
+  }
+
+  // 氏名＋勤務時間の1ブロック。ラスト担当は終了時刻の代わりにⓁを付ける。
+  // 氏名と時間は白抜き・薄灰色の1つの枠で囲み、ドラッグ＆ドロップで一緒に移動できる（ref はドラッグ元の位置）。
+  function assignBlockHtml(assign, surnameCounts, ref) {
+    const { text, surnameOnly } = resolveDisplayName(assign.person, surnameCounts);
+    const nameCls = (surnameOnly ? "assign-name surname-only" : "assign-name") + (assign.isTrainee ? " has-trainee" : "");
+    const badge = assign.isTrainee ? `<span class="trainee-badge">(研修)</span>` : "";
+    const timeLine = assign.isLast
+      ? `${formatMinutes(assign.start)}~Ⓛ`
+      : `${formatMinutes(assign.start)}~`;
+    // 氏名と時間を同じ枠で囲み、ドラッグでも一緒に動かす／タップで編集ポップアップを開く
+    return `<div class="assign-block${frameClass(ref)}"${frameAttrs(ref)}><div class="${nameCls}">${escapeHtml(text)}${badge}</div><div class="assign-time">${timeLine}</div></div>`;
+  }
+
+  // ---------- 手動編集（氏名のドラッグ＆ドロップ）用のマークアップ ----------
+
+  function frameClass(ref) {
+    return " name-frame" + (frameWarnings[frameKey(ref)] ? " warn" : "");
+  }
+
+  function frameAttrs(ref) {
+    const warning = frameWarnings[frameKey(ref)];
+    return ` data-src-date="${ref.dateIso}" data-src-role="${ref.role}" data-src-idx="${ref.idx}"`
+      + (warning ? ` title="${escapeHtml(warning)}"` : "");
+  }
+
+  function frameKey(ref) {
+    return ref.dateIso + "|" + ref.role + "|" + ref.idx;
+  }
+
+  // ドロップ先になれるマス（生成済みの営業日の料理長・厨房・ホール）の目印。空きマスのみ受け付ける。
+  function dropAttrs(gen, dateIso, role, slot) {
+    if (!gen || !gen.assignment[dateIso]) return "";
+    return ` data-drop-date="${dateIso}" data-drop-role="${role}" data-drop-slot="${slot}"`;
+  }
+
+  function dropClass(isEmpty) {
+    return isEmpty ? " drop-empty" : "";
+  }
+
+  // 料理長行：属性が「料理長」のスタッフが○で出した希望をそのまま表示する（割当競合は無い）
+  function renderChiefCell(gen, dateIso, surnameCounts) {
+    if (!gen) return `<span class="empty-note">未生成</span>`;
+    const day = gen.assignment[dateIso];
+    if (!day) return "";
+
+    // 仕込み欄と同じ構成：枠を並べる領域と、最下部のシフト追加「＋」ボタン
+    const frames = (day.chief || []).map((pick, idx) => {
+      const ref = { dateIso, role: "chief", idx };
+      const { text, surnameOnly } = resolveDisplayName(pick.person, surnameCounts);
+      // 開始時刻は表示しない。終了時刻（何時まで）の指定がある場合のみ名前の下に表記する。
+      const endTime = chiefEndText(pick) ? escapeHtml(chiefEndText(pick)) : "";
+      const nameHtml = `<span class="${surnameOnly ? "surname-only" : ""}">${escapeHtml(text)}</span>`;
+      return `<div class="${frameClass(ref).trim()}"${frameAttrs(ref)}>${nameHtml}${endTime ? `<br><span class="chief-end">${endTime}</span>` : ""}</div>`;
+    }).join("");
+    const addBtn = `<button type="button" class="add-shift-btn" data-add-date="${dateIso}" data-add-role="chief" title="シフトを追加" aria-label="シフトを追加">+</button>`;
+    return `<div class="block-inner"><div class="block-items">${frames}</div>${addBtn}</div>`;
+  }
+
+  // 料理長の終了時刻の表記。ポップアップで変更した場合（endOverride）はそちらを優先する
+  // （希望データ state.cells 自体は書き換えない）。
+  function chiefEndText(pick) {
+    return pick.endOverride !== undefined ? pick.endOverride : (pick.cell.end || "");
+  }
+
+  // ラスト行（厨房側／ホール側）：ラスト担当者の名前のみを表示する
+  function renderLastCell(gen, dateIso, side, surnameCounts) {
+    if (!gen) return `<span class="empty-note">未生成</span>`;
+    const day = gen.assignment[dateIso];
+    if (!day) return "";
+
+    const pick = side === "kitchen" ? day.lastKitchen : day.lastHall;
+    if (!pick) return gen.manual ? "" : `<span class="assign-empty">未定</span>`;
+    return nameBlockHtml(pick.person, surnameCounts);
+  }
+
+  function combineTime(start, end) {
+    if (start && end) return start.replace("~", "") + "~" + end.replace("~", "");
+    if (start) return start;
+    if (end) return end;
+    return "";
+  }
+
+  // 同姓同名のスタッフがいない限り姓のみ表示し、姓が重複する人だけフルネームを表示する。
+  // 姓のみ表示の人は文字を大きくして見やすくする（surname-only クラス）。
+  function computeSurnameCounts(staffList) {
+    const counts = {};
+    staffList.forEach(p => {
+      const lastName = (p.lastName || p.name || "").trim();
+      if (!lastName) return;
+      counts[lastName] = (counts[lastName] || 0) + 1;
+    });
+    return counts;
+  }
+
+  function resolveDisplayName(person, surnameCounts) {
+    const lastName = (person.lastName || person.name || "").trim();
+    const isDuplicateSurname = (surnameCounts[lastName] || 0) > 1;
+    return {
+      text: isDuplicateSurname ? (person.name || lastName) : lastName,
+      surnameOnly: !isDuplicateSurname
+    };
+  }
+
+  function nameBlockHtml(person, surnameCounts) {
+    const { text, surnameOnly } = resolveDisplayName(person, surnameCounts);
+    const cls = surnameOnly ? "assign-name surname-only" : "assign-name";
+    return `<div class="${cls}">${escapeHtml(text)}</div>`;
+  }
+
+  // ---------- LINEへの送信（完成シフトの画像） ----------
+
+  async function openSendPopup() {
+    const sheets = Array.from(tableWrap.querySelectorAll(".a4-sheet"));
+    if (sheets.length === 0 || !getValidGen()) {
+      alert("送信できるシフト表がありません。");
+      return;
+    }
+    const sendBtn = document.getElementById("sendBtn");
+    sendBtn.disabled = true;
+    sendBtn.textContent = "画像を作成中…";
+    let images;
+    try {
+      images = await captureSheets(sheets);
+    } catch (e) {
+      console.error(e);
+      alert("シフト表を画像にできませんでした。");
+      return;
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.textContent = "LINEに送信";
+    }
+
+    const previewUrls = images.map(img => URL.createObjectURL(img.preview));
+    const overlay = document.createElement("div");
+    overlay.className = "overlay";
+    overlay.innerHTML = `
+      <div class="popup send-popup">
+        <div class="popup-header">
+          <div class="p-date">LINEに送信しますか？</div>
+        </div>
+        <div class="send-previews">${previewUrls.map(u => `<img src="${u}" alt="シフト表">`).join("")}</div>
+        <div class="popup-field">
+          <label for="sendMessage">画像と一緒に送る文章（空欄なら画像のみ）</label>
+          <textarea id="sendMessage" rows="3"></textarea>
+          <div class="send-note">公式LINEの友だち全員に、上の画像${images.length}枚を送ります。</div>
+          <div class="send-note" id="sendQuota">今月の送信数を確認中…</div>
+        </div>
+        <div class="popup-field"><div class="error-text" id="sendError"></div></div>
+        <div class="popup-footer">
+          <button class="cancel-btn">キャンセル</button>
+          <button class="confirm-btn">送信する</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const messageInput = overlay.querySelector("#sendMessage");
+    const errorText = overlay.querySelector("#sendError");
+    const cancelBtn = overlay.querySelector(".cancel-btn");
+    const confirmBtn = overlay.querySelector(".confirm-btn");
+    messageInput.value = defaultSendMessage();
+    showSendQuota(overlay.querySelector("#sendQuota"));
+
+    function close() {
+      previewUrls.forEach(u => URL.revokeObjectURL(u));
+      overlay.remove();
+    }
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay && !confirmBtn.disabled) close();
+    });
+    cancelBtn.addEventListener("click", close);
+    confirmBtn.addEventListener("click", async () => {
+      confirmBtn.disabled = true;
+      cancelBtn.disabled = true;
+      errorText.textContent = "";
+      confirmBtn.textContent = "送信中…";
+      try {
+        const urls = await uploadImages(images);
+        await ShiftDB.callFunction("line-send", { action: "shift", text: messageInput.value.trim(), images: urls });
+      } catch (e) {
+        errorText.textContent = "送信できませんでした：" + e.message;
+        confirmBtn.textContent = "送信する";
+        confirmBtn.disabled = false;
+        cancelBtn.disabled = false;
+        return;
+      }
+      close();
+      alert("LINEに送信しました。");
+    });
+  }
+
+  function defaultSendMessage() {
+    const dates = getDateRange(state.startDate, DAYS_COUNT);
+    const fmt = (d) => `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAY_LABELS[d.getDay()]})`;
+    return `${fmt(dates[0])}〜${fmt(dates[dates.length - 1])}のシフトが完成しました。`;
+  }
+
+  async function showSendQuota(el) {
+    try {
+      const q = await ShiftDB.callFunction("line-send", { action: "quota" });
+      let text = q.limit === null ? `今月の送信数：${q.used}通` : `今月の送信数：${q.used} / ${q.limit}通`;
+      if (q.recipients !== null) text += `（今回の送信で約${q.recipients}通使います）`;
+      el.textContent = text;
+    } catch (e) {
+      el.textContent = "今月の送信数を確認できませんでした（" + e.message + "）";
+    }
+  }
+
+  // A4シート（1週間分）ごとに、送信用の画像（PNG）と、LINEのトーク画面に出る縮小画像（JPEG）を作る
+  async function captureSheets(sheets) {
+    document.body.classList.add("capture-mode");
+    try {
+      const result = [];
+      for (const sheet of sheets) {
+        const canvas = await htmlToImage.toCanvas(sheet, { pixelRatio: 2, backgroundColor: "#fff" });
+        const original = await canvasToBlob(canvas, "image/png");
+        const PREVIEW_WIDTH = 480;
+        const preview = document.createElement("canvas");
+        preview.width = PREVIEW_WIDTH;
+        preview.height = Math.round(canvas.height * PREVIEW_WIDTH / canvas.width);
+        const ctx = preview.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, preview.width, preview.height);
+        ctx.drawImage(canvas, 0, 0, preview.width, preview.height);
+        result.push({ original, preview: await canvasToBlob(preview, "image/jpeg", 0.85) });
+      }
+      return result;
+    } finally {
+      document.body.classList.remove("capture-mode");
+      layoutSheetRows();
+    }
+  }
+
+  function canvasToBlob(canvas, type, quality) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("画像の作成に失敗しました。")), type, quality);
+    });
+  }
+
+  // 画像をSupabaseのStorage（公開バケット shift-images）に置き、LINEに渡すURLを返す。
+  // 送るたびに別のフォルダにする（同じURLを上書きすると、過去のトークの画像まで差し替わるため）。
+  async function uploadImages(images) {
+    const storage = ShiftDB.client.storage.from("shift-images");
+    const folder = new Date().toISOString().replace(/[:.]/g, "-");
+    const urls = [];
+    for (let i = 0; i < images.length; i++) {
+      const originalPath = `${folder}/week${i + 1}.png`;
+      const previewPath = `${folder}/week${i + 1}_preview.jpg`;
+      const up1 = await storage.upload(originalPath, images[i].original, { contentType: "image/png" });
+      if (up1.error) throw new Error("画像を保存できませんでした（" + up1.error.message + "）");
+      const up2 = await storage.upload(previewPath, images[i].preview, { contentType: "image/jpeg" });
+      if (up2.error) throw new Error("画像を保存できませんでした（" + up2.error.message + "）");
+      urls.push({
+        original: storage.getPublicUrl(originalPath).data.publicUrl,
+        preview: storage.getPublicUrl(previewPath).data.publicUrl
+      });
+    }
+    return urls;
+  }
+
+
+  // ---------- utilities ----------
+
+  function generateTimeOptions(startH, startM, endH, endM, stepMin, formatFn) {
+    const result = [];
+    let totalStart = startH * 60 + startM;
+    let totalEnd = endH * 60 + endM;
+    for (let t = totalStart; t <= totalEnd; t += stepMin) {
+      const h = Math.floor(t / 60);
+      const m = t % 60;
+      result.push(formatFn(h, m));
+    }
+    return result;
+  }
+
+  function pad(n) {
+    return String(n).padStart(2, "0");
+  }
+
+  function saveState() {
+    ShiftDB.save(state);
+  }
+
+  function loadState() {
+    return ShiftDB.loaded();
+  }
+
+  // 「シフト希望を募集する」ページの詳細設定「定休日（曜日）」に該当する日を自動の定休日とする。
+  function isAutoClosed(dateIso) {
+    const defaultWeekdays = state.shiftParams.defaultClosedWeekdays || [];
+    const d = new Date(dateIso + "T00:00:00");
+    return defaultWeekdays.includes(d.getDay());
+  }
+
+  // 初期設定ページの「臨時休業の設定」で指定した日は、募集自体を行っていないため
+  // 手動上書き（closedDateOverrides）の対象にはせず、無条件に定休日として扱う。
+  function isTemporarilyClosed(dateIso) {
+    return (state.shiftParams.temporaryClosedDates || []).includes(dateIso);
+  }
+
+  function isClosedDate(dateIso) {
+    if (isTemporarilyClosed(dateIso)) return true;
+    if (isAutoClosed(dateIso)) {
+      return !state.closedDateOverrides.includes(dateIso);
+    }
+    return state.closedDates.includes(dateIso);
+  }
+
+  function toggleClosedDate(dateIso) {
+    if (isTemporarilyClosed(dateIso)) return; // 臨時休業は初期設定ページでのみ解除する
+    if (isAutoClosed(dateIso)) {
+      const idx = state.closedDateOverrides.indexOf(dateIso);
+      if (idx === -1) state.closedDateOverrides.push(dateIso); // ルール・既定に反して営業日にする
+      else state.closedDateOverrides.splice(idx, 1); // ルール・既定通りの定休日に戻す
+    } else {
+      const idx = state.closedDates.indexOf(dateIso);
+      if (idx === -1) state.closedDates.push(dateIso);
+      else state.closedDates.splice(idx, 1);
+    }
+  }
+
+  function getDateRange(startIso, count) {
+    const result = [];
+    const base = new Date(startIso + "T00:00:00");
+    for (let i = 0; i < count; i++) {
+      const d = new Date(base);
+      d.setDate(base.getDate() + i);
+      result.push(d);
+    }
+    return result;
+  }
+
+  function toIsoDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function formatMonthDay(d) {
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  }
+
+  function cryptoId() {
+    return Math.random().toString(36).slice(2, 10);
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+})();
+</script>
+
+</body>
+</html>
