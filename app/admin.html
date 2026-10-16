@@ -27,7 +27,7 @@
     cursor: pointer;
     font-size: 13px;
   }
-  #backBtn, #logoutBtn {
+  #backBtn {
     padding: 4px 10px;
   }
   .menu-list {
@@ -134,10 +134,7 @@
   <div class="menu-list">
     <button class="menu-btn" id="staffMenuBtn">スタッフ登録・削除</button>
     <button class="menu-btn" id="shiftParamsMenuBtn">シフト希望を募集する</button>
-  </div>
-
-  <div class="controls" style="margin-top: 32px;">
-    <button id="logoutBtn">ログアウト</button>
+    <button class="menu-btn" id="passwordMenuBtn">パスワード管理</button>
   </div>
 </div>
 
@@ -146,13 +143,13 @@
 <script src="db.js"></script>
 <script>
 (async function () {
-  await ShiftDB.ready();
+  await ShiftDB.requireAuth();
 
   const adminContent = document.getElementById("adminContent");
   const backBtn = document.getElementById("backBtn");
   const staffMenuBtn = document.getElementById("staffMenuBtn");
   const shiftParamsMenuBtn = document.getElementById("shiftParamsMenuBtn");
-  const logoutBtn = document.getElementById("logoutBtn");
+  const passwordMenuBtn = document.getElementById("passwordMenuBtn");
 
   backBtn.addEventListener("click", () => {
     ShiftDB.go("shift_availability.html");
@@ -166,8 +163,8 @@
     ShiftDB.go("admin_shift_params.html");
   });
 
-  logoutBtn.addEventListener("click", () => {
-    if (confirm("ログアウトしますか？")) ShiftDB.signOut();
+  passwordMenuBtn.addEventListener("click", () => {
+    ShiftDB.go("admin_password.html");
   });
 
   adminContent.style.display = "block";

@@ -293,21 +293,34 @@
   const manualShiftBtn = document.getElementById("manualShiftBtn");
   const reloadBtn = document.getElementById("reloadBtn");
 
+  // 「管理」「自動シフト作成」「シフトを自作する」はバイトリーダー用のため、誤操作防止のパスワードを求める。
+  // パスワード欄に sample と入力した場合は、認証の代わりにダミーデータを作ってこの画面に反映する（デバッグ用）。
   adminBtn.addEventListener("click", () => {
-    ShiftDB.go("admin.html");
+    passwordThenGo("admin.html");
   });
 
   autoShiftBtn.addEventListener("click", () => {
-    setSessionFlag(AUTO_GENERATE_KEY);
-    ShiftDB.go("shift_generate.html");
+    passwordThenGo("shift_generate.html", AUTO_GENERATE_KEY);
   });
 
   manualShiftBtn.addEventListener("click", () => {
-    setSessionFlag(MANUAL_CREATE_KEY);
-    ShiftDB.go("shift_generate.html");
+    passwordThenGo("shift_generate.html", MANUAL_CREATE_KEY);
   });
 
-  // メンバーがLINEから入力した最新の内容を読み込み直す
+  async function passwordThenGo(url, sessionFlagKey) {
+    const result = await ShiftDB.askPassword();
+    if (result === "sample") {
+      ShiftDB.fillSampleData(state);
+      saveState();
+      render();
+      return;
+    }
+    if (result !== "ok") return;
+    if (sessionFlagKey) setSessionFlag(sessionFlagKey);
+    ShiftDB.go(url);
+  }
+
+  // 他の人が各自のスマホから入力した最新の内容を読み込み直す
   reloadBtn.addEventListener("click", async () => {
     await ShiftDB.flush();
     window.location.reload();

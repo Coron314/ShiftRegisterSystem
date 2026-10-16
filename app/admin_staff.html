@@ -193,7 +193,9 @@
 <script src="db.js"></script>
 <script>
 (async function () {
-  await ShiftDB.ready();
+  const dataReady = ShiftDB.ready();
+  await ShiftDB.requireAuth();
+  await dataReady;
   const ATTRIBUTES = ["指定なし", "厨房専門", "ホール専門", "厨房優先", "ホール優先", "ヘルプ", "研修", "料理長"];
   const DEFAULT_ATTRIBUTE = "指定なし";
 
