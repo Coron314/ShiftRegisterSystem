@@ -339,10 +339,15 @@
   });
 
   // ---------- デバッグ用「sample」コマンド ----------
-  // パスワード欄に sample と入力すると、ダミーのスタッフ8名と募集期間分のシフト希望を作って state に入れる。
+  // パスワード欄に sample と入力すると、下記のスタッフ（姓のみ）と募集期間分のシフト希望を作って state に入れる。
   // （本番運用前に無効化・削除するかは未定。保存先はDBのため、登録済みのスタッフ・シフト希望は置き換わる）
-  const SAMPLE_NAMES = ["田中 太郎", "田中 花子", "佐藤 健", "鈴木 美咲", "高橋 翔", "伊藤 結衣", "渡辺 大輝", "山本 さくら"];
-  const SAMPLE_ATTRIBUTES = ["料理長", "厨房専門", "ホール専門", "厨房優先", "ホール優先", "指定なし", "ヘルプ", "研修"];
+  const SAMPLE_STAFF = [
+    ["大武", "料理長"], ["大志", "ホール専門"], ["八代", "厨房専門"], ["岡崎", "指定なし"],
+    ["渡邊", "指定なし"], ["小林", "厨房優先"], ["畑山", "ホール専門"], ["二宮", "ホール専門"],
+    ["前山", "ホール専門"], ["前嶋", "厨房優先"], ["福田", "厨房優先"], ["比嘉", "厨房優先"],
+    ["加藤", "指定なし"], ["橋爪", "指定なし"], ["山下", "指定なし"], ["金本", "指定なし"],
+    ["河野", "研修"]
+  ];
   const SAMPLE_STARTS = ["15:00~", "16:00~", "17:00~", "18:00~", "19:00~"];
   const SAMPLE_ENDS = ["~21:00", "~22:00", "~23:00"];
   const SAMPLE_WISHES = ["早イン", "早上がり", "ラスト"];
@@ -350,11 +355,9 @@
   const SAMPLE_CONDITIONAL_COUNT = 5; // 時刻か希望が付いた○にするマスの数（同上）
 
   function fillSampleData(state) {
-    const attrs = shuffle(SAMPLE_ATTRIBUTES.slice());
-    state.staff = SAMPLE_NAMES.map((full, i) => {
-      const [lastName, firstName] = full.split(" ");
-      return { id: Math.random().toString(36).slice(2, 10), lastName, firstName, name: full, attribute: attrs[i] };
-    });
+    state.staff = SAMPLE_STAFF.map(([lastName, attribute]) => (
+      { id: Math.random().toString(36).slice(2, 10), lastName, firstName: "", name: lastName, attribute }
+    ));
     state.cells = {};
     delete state.generatedShift;
 
