@@ -68,6 +68,23 @@
   td:first-child {
     background: #fff;
   }
+  /* 最後に○✕を入力した人の行を太枠で囲む */
+  tr.active-row > td {
+    border-top: 3px solid #1a5fb4;
+    border-bottom: 3px solid #1a5fb4;
+  }
+  /* 氏名列は横スクロールで固定表示されるため、罫線ではなく内側の影で枠を描く（罫線は固定表示に追従しない） */
+  tr.active-row > td:first-child {
+    border-left: 3px solid #1a5fb4;
+    box-shadow:
+      inset 3px 0 0 #1a5fb4,
+      inset 0 2px 0 #1a5fb4,
+      inset 0 -2px 0 #1a5fb4,
+      2px 0 4px rgba(0,0,0,0.08);
+  }
+  tr.active-row > td:last-child {
+    border-right: 3px solid #1a5fb4;
+  }
 
   .cell-btn {
     width: 72px;
@@ -287,6 +304,9 @@
   delete state.shiftParams.defaultClosedWeekday;
   if (!state.shiftParams.temporaryClosedDates) state.shiftParams.temporaryClosedDates = [];
 
+  // 最後に○✕を入力した人の行（誤入力防止の太枠表示用）。保存しないため再読み込みで消える
+  let highlightedStaffId = null;
+
   const tableWrap = document.getElementById("tableWrap");
   const adminBtn = document.getElementById("adminBtn");
   const autoShiftBtn = document.getElementById("autoShiftBtn");
@@ -353,7 +373,8 @@
 
     const visibleStaff = state.staff.filter(p => p.name && p.name.trim() !== "");
     for (const person of visibleStaff) {
-      html += `<tr><td class="name-display">${escapeHtml(person.name)}</td>`;
+      const rowClass = person.id === highlightedStaffId ? ` class="active-row"` : "";
+      html += `<tr${rowClass}><td class="name-display">${escapeHtml(person.name)}</td>`;
 
       for (const d of dates) {
         const dateKey = toIsoDate(d);
@@ -489,6 +510,7 @@
       }
       if (result.mark) {
         state.cells[cellKey] = result;
+        highlightedStaffId = staffId;
       } else {
         delete state.cells[cellKey];
       }

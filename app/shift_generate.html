@@ -885,6 +885,7 @@
 
   // タイムテーブルの時間粒度と各種既定の勤務長さ
   const SLOT_MINUTES = 30;
+  const START_SELECT_FROM_MINUTES = 15 * 60; // 枠編集ポップアップで選べる開始時刻の下限（全曜日共通）
   const DEFAULT_WORK_MINUTES = 4 * 60;   // オープン担当・不足補充の既定勤務時間
   const TRAINEE_WORK_MINUTES = 2 * 60;   // 研修の勤務時間
   const LAST_TARGET_MINUTES = 18 * 60;   // ラストの既定出勤時刻
@@ -1836,8 +1837,10 @@
         + `</select></div>`;
     } else {
       const grid = [];
-      // 仕込みはオープン前から入ることがあるため、選べる開始時刻を3時間前まで広げる
-      const gridFrom = src.role === "prep" ? Math.max(0, day.openMin - 180) : day.openMin;
+      // 選べる開始時刻は、曜日ごとのオープン時刻に依存せず全曜日で15:00から始める。
+      // 仕込みはオープン前から入ることがあるため、その日のオープンの3時間前がこれより早ければそこまで広げる。
+      let gridFrom = START_SELECT_FROM_MINUTES;
+      if (src.role === "prep") gridFrom = Math.max(0, Math.min(gridFrom, day.openMin - 180));
       for (let t = gridFrom; t <= day.closeMin; t += SLOT_MINUTES) grid.push(t);
       const minuteOptions = selected => {
         const list = selected == null || grid.includes(selected) ? grid : grid.concat([selected]).sort((a, b) => a - b);
