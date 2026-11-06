@@ -458,6 +458,43 @@
   .a4-sheet .last-cell .assign-name {
     font-weight: bold;
   }
+  /* ラストの各マスの右端に置く「変更できます」を示す鉛筆アイコンのボタン */
+  .a4-sheet .last-cell.last-editable {
+    position: relative;
+    padding-right: 16px;
+  }
+  .a4-sheet .last-edit-btn {
+    position: absolute;
+    top: 50%;
+    right: 2px;
+    transform: translateY(-50%);
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    border: 1px solid #c4c4c4;
+    border-radius: 4px;
+    background: #fff;
+    color: #666;
+    font-size: 10px;
+    line-height: 12px;
+    cursor: pointer;
+  }
+  .a4-sheet .last-edit-btn:hover {
+    border-color: #8f8f8f;
+    color: #222;
+    background: #f3f4f6;
+  }
+  .a4-sheet .last-cell .assign-name.last-help {
+    color: #c01c28;
+    font-size: 14px;
+  }
+  /* ラスト編集ポップアップの「ヘルプ」は赤文字 */
+  .edit-popup select .help-option,
+  .edit-popup select.help-selected {
+    color: #c01c28;
+  }
   /* 仕込み欄は名前の枠2つぶんの高さ（厨房・ホールの1行＝49.25px×2）。余った高さは紙面の最下部の余白 */
   .a4-sheet .prep-cell {
     height: 113.5px;   /* 名前の枠2つぶん（49.25px×2）＋「＋」ボタンの余白15px */
@@ -525,6 +562,7 @@
     box-shadow: none;
   }
   body.capture-mode .a4-sheet .add-shift-btn,
+  body.capture-mode .a4-sheet .last-edit-btn,
   body.capture-mode .a4-sheet .assign-empty {
     visibility: hidden;
   }
@@ -806,6 +844,7 @@
     }
     /* シフト追加の「＋」ボタンと「未定」表記は印刷しない（場所は残してレイアウトを保つ） */
     .a4-sheet .add-shift-btn,
+    .a4-sheet .last-edit-btn,
     .a4-sheet .assign-empty {
       visibility: hidden;
     }
@@ -1638,6 +1677,11 @@
 
     // 各ブロック最下段の「＋」ボタン：シフト追加ポップアップ（編集ポップアップと同じUI）を開く
     tableWrap.addEventListener("click", e => {
+      const lastBtn = e.target.closest(".last-edit-btn");
+      if (lastBtn && getValidGen()) {
+        openLastPopup(lastBtn.dataset.lastDate, lastBtn.dataset.lastSide);
+        return;
+      }
       const btn = e.target.closest(".add-shift-btn");
       if (!btn || !getValidGen()) return;
       openEditPopup({ dateIso: btn.dataset.addDate, role: btn.dataset.addRole, idx: null, add: true });
@@ -2270,7 +2314,11 @@
 
         if (row.role === "lastKitchen" || row.role === "lastHall") {
           const side = row.role === "lastKitchen" ? "kitchen" : "hall";
-          html += `<td class="assign-cell last-cell">${renderLastCell(gen, dateIso, side, surnameCounts)}</td>`;
+          const editable = !!(gen && gen.assignment[dateIso]);
+          const editBtn = editable
+            ? `<button type="button" class="last-edit-btn" data-last-date="${dateIso}" data-last-side="${side}" title="ラストを変更" aria-label="ラストを変更">✎</button>`
+            : "";
+          html += `<td class="assign-cell last-cell${editable ? " last-editable" : ""}">${renderLastCell(gen, dateIso, side, surnameCounts)}${editBtn}</td>`;
           continue;
         }
 
@@ -2456,9 +2504,107 @@
     const day = gen.assignment[dateIso];
     if (!day) return "";
 
+    const edit = lastEditOf(day, side);
+    if (edit) {
+      if (edit.kind === "help") return `<div class="assign-name last-help">ヘルプ</div>`;
+      if (edit.kind === "blank") return "";
+      const person = state.staff.find(p => p.id === edit.personId);
+      if (person) return nameBlockHtml(person, surnameCounts);
+    }
     const pick = side === "kitchen" ? day.lastKitchen : day.lastHall;
     if (!pick) return gen.manual ? "" : `<span class="assign-empty">未定</span>`;
     return nameBlockHtml(pick.person, surnameCounts);
+  }
+
+  // ラスト行の手動指定（名前のみ）。day.lastEdit = { kitchen/hall: {kind:"person",personId} | {kind:"help"} | {kind:"blank"} }
+  // 指定が無い側は、厨房・ホールの割当から自動で導出した表示のまま。
+  function lastEditOf(day, side) {
+    return (day.lastEdit && day.lastEdit[side]) || null;
+  }
+
+  // ラスト行のセルをタップしたときの編集ポップアップ（時間指定なし・名前のみ）
+  function openLastPopup(dateIso, side) {
+    const gen = getValidGen();
+    if (!gen) return;
+    const day = gen.assignment[dateIso];
+    if (!day || document.querySelector(".overlay.edit-overlay")) return;
+
+    const staffList = state.staff.filter(p => p.name && p.name.trim() !== "");
+    const edit = lastEditOf(day, side);
+    const derived = side === "kitchen" ? day.lastKitchen : day.lastHall;
+    let current = "";                       // 選択中の値：人のid／"__help__"／""（空白）
+    if (edit) current = edit.kind === "help" ? "__help__" : edit.kind === "person" ? edit.personId : "";
+    else if (derived) current = derived.person.id;
+
+    const cellOf = p => state.cells[p.id + "_" + dateIso] || null;
+    const circled = staffList.filter(p => { const c = cellOf(p); return c && c.mark === "○"; });
+    const others = staffList.filter(p => !circled.includes(p));
+    const personOption = p => {
+      const c = cellOf(p);
+      const tag = c && c.mark === "×" ? "（×）" : (!c || !c.mark) ? "（未入力）" : "";
+      return `<option value="${escapeHtml(p.id)}"${p.id === current ? " selected" : ""}>${escapeHtml(p.name)}${tag}</option>`;
+    };
+    const selectHtml = `<select id="lastPerson" class="${current === "__help__" ? "help-selected" : ""}">`
+      + `<option value=""${current === "" ? " selected" : ""}>（空白）</option>`
+      + (circled.length ? `<optgroup label="この日○の人">${circled.map(personOption).join("")}</optgroup>` : "")
+      + (others.length ? `<optgroup label="その他">${others.map(personOption).join("")}</optgroup>` : "")
+      + `<option value="__help__" class="help-option"${current === "__help__" ? " selected" : ""}>ヘルプ</option>`
+      + `</select>`;
+
+    const dateObj = new Date(dateIso + "T00:00:00");
+    const dateLabel = `${formatMonthDay(dateObj)}（${WEEKDAY_LABELS[dateObj.getDay()]}）`;
+    const sideLabel = side === "kitchen" ? "厨房側" : "ホール側";
+
+    const overlay = document.createElement("div");
+    overlay.className = "overlay edit-overlay";
+    overlay.innerHTML = `
+      <div class="popup edit-popup">
+        <div class="popup-header">
+          <div class="p-date">${dateLabel}</div>
+          <div class="p-sub">ラスト（${sideLabel}）を編集</div>
+        </div>
+        <div class="popup-field"><label>担当者</label>${selectHtml}</div>
+        <div class="popup-footer">
+          <button class="cancel-btn">キャンセル</button>
+          ${edit ? `<button class="delete-btn">自動に戻す</button>` : ""}
+          <button class="confirm-btn">決定</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const popup = overlay.querySelector(".popup");
+    const select = popup.querySelector("#lastPerson");
+    select.addEventListener("change", () => select.classList.toggle("help-selected", select.value === "__help__"));
+
+    function onKey(e) { if (e.key === "Escape") close(); }
+    function close() {
+      window.removeEventListener("keydown", onKey);
+      overlay.remove();
+    }
+    function commit() {
+      gen.edited = true;
+      saveState();
+      close();
+      renderTable();
+    }
+    window.addEventListener("keydown", onKey);
+    overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
+    popup.querySelector(".cancel-btn").addEventListener("click", close);
+
+    const resetBtn = popup.querySelector(".delete-btn");
+    if (resetBtn) resetBtn.addEventListener("click", () => {
+      if (day.lastEdit) delete day.lastEdit[side];
+      commit();
+    });
+
+    popup.querySelector(".confirm-btn").addEventListener("click", () => {
+      const v = select.value;
+      if (v === current && !edit) { close(); return; } // 変更なし（自動表示のまま）
+      if (!day.lastEdit) day.lastEdit = {};
+      day.lastEdit[side] = v === "__help__" ? { kind: "help" } : v === "" ? { kind: "blank" } : { kind: "person", personId: v };
+      commit();
+    });
   }
 
   function combineTime(start, end) {

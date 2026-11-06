@@ -31,8 +31,10 @@
     cursor: pointer;
     font-size: 13px;
   }
+  /* 日付行を上に固定するため、表の入れ物自体を縦にもスクロールさせる
+     （高さは fitTableWrapHeight() が画面の残りに合わせて設定する） */
   #tableWrap {
-    overflow-x: auto;
+    overflow: auto;
     -webkit-overflow-scrolling: touch;
     max-width: 100%;
     border: 1px solid #999;
@@ -50,6 +52,14 @@
   th {
     background: #f0f0f0;
   }
+  /* 日付行：縦スクロールしても表が続く限り上端に固定表示する。
+     罫線は固定表示に追従しないため、下の罫線は内側の影で描く */
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    box-shadow: inset 0 -1px 0 #999;
+  }
   th.sat { color: #1a5fb4; }
   th.sun { color: #c01c28; }
   .name-display {
@@ -64,6 +74,7 @@
   th:first-child {
     z-index: 3;
     background: #f0f0f0;
+    box-shadow: inset 0 -1px 0 #999, 2px 0 4px rgba(0,0,0,0.08);
   }
   td:first-child {
     background: #fff;
@@ -387,7 +398,16 @@
 
     tableWrap.innerHTML = html;
     bindTableEvents();
+    fitTableWrapHeight();
   }
+
+  // 表の入れ物の高さを「画面の下端まで」に合わせる（表がそれより短ければ内容どおり）
+  function fitTableWrapHeight() {
+    const top = tableWrap.getBoundingClientRect().top;
+    const h = Math.max(240, window.innerHeight - top - 12);
+    tableWrap.style.maxHeight = h + "px";
+  }
+  window.addEventListener("resize", fitTableWrapHeight);
 
   function isRecruitClosed(d) {
     const iso = toIsoDate(d);
