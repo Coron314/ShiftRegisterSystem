@@ -4,44 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>自動シフト作成</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 <style>
-  * {
-    box-sizing: border-box;
-  }
-  body {
-    font-family: "Yu Gothic", "Meiryo", sans-serif;
-    margin: 16px;
-    font-size: 14px;
-  }
-  h1 {
-    font-size: 18px;
-    margin-bottom: 12px;
-  }
-  .controls {
-    margin-bottom: 12px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px 12px;
-  }
   button {
     cursor: pointer;
     font-size: 13px;
   }
-  #backBtn, #regenerateBtn, #printBtn, #sendBtn {
-    padding: 4px 10px;
-  }
-  #regenerateBtn {
-    background: #1a5fb4;
-    color: #fff;
-    border-color: #1a5fb4;
-    font-weight: bold;
-  }
-  .empty-note {
-    color: #999;
-    font-size: 13px;
-  }
-
   /* --- A4一週間分シート。2枚横並び（スマホは縦並びで画面いっぱい） --- */
   .sheets-wrap {
     display: flex;
@@ -490,11 +461,6 @@
     color: #c01c28;
     font-size: 14px;
   }
-  /* ラスト編集ポップアップの「ヘルプ」は赤文字 */
-  .edit-popup select .help-option,
-  .edit-popup select.help-selected {
-    color: #c01c28;
-  }
   /* 仕込み欄は名前の枠2つぶんの高さ（厨房・ホールの1行＝49.25px×2）。余った高さは紙面の最下部の余白 */
   .a4-sheet .prep-cell {
     height: 113.5px;   /* 名前の枠2つぶん（49.25px×2）＋「＋」ボタンの余白15px */
@@ -571,185 +537,6 @@
     border-color: transparent;
     background: transparent;
     box-shadow: none;
-  }
-  .popup.send-popup {
-    width: 460px;
-  }
-  .send-previews {
-    display: flex;
-    gap: 8px;
-    justify-content: center;
-    margin-bottom: 12px;
-  }
-  .send-previews img {
-    width: 120px;
-    min-width: 0;
-    border: 1px solid #ccc;
-  }
-  .popup-field textarea {
-    width: 100%;
-    font-size: 14px;
-    padding: 6px;
-    box-sizing: border-box;
-    font-family: inherit;
-  }
-  .send-note {
-    font-size: 12px;
-    color: #555;
-    margin-top: 4px;
-  }
-
-  /* --- popup --- */
-  .overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-  }
-  .popup {
-    background: #fff;
-    border-radius: 10px;
-    padding: 20px 24px;
-    width: 340px;
-    max-width: 90vw;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-  }
-  .popup-header {
-    text-align: center;
-    margin-bottom: 14px;
-  }
-  .popup-header .p-date {
-    font-size: 20px;
-    font-weight: bold;
-  }
-  .popup-field {
-    margin-bottom: 10px;
-  }
-  .popup-field label {
-    display: block;
-    font-size: 12px;
-    color: #555;
-    margin-bottom: 2px;
-  }
-  .popup-field input[type="password"],
-  .popup-field input[type="text"] {
-    width: 100%;
-    font-size: 14px;
-    padding: 6px;
-    box-sizing: border-box;
-  }
-  .popup-field .error-text {
-    color: #c01c28;
-    font-size: 12px;
-    margin-top: 6px;
-    min-height: 14px;
-  }
-  .popup-footer {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 18px;
-  }
-  .popup-footer button {
-    padding: 8px 18px;
-    font-size: 14px;
-    border-radius: 6px;
-    border: 1px solid #999;
-    background: #f5f5f5;
-  }
-  .popup-footer .confirm-btn {
-    background: #1a5fb4;
-    color: #fff;
-    border-color: #1a5fb4;
-    font-weight: bold;
-  }
-
-  .popup-field select {
-    width: 100%;
-    font-size: 14px;
-    padding: 6px;
-    box-sizing: border-box;
-  }
-  .popup-field .time-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .popup-field .time-row select {
-    flex: 1;
-  }
-  .popup-footer .delete-btn {
-    color: #c01c28;
-    border-color: #c01c28;
-  }
-  /* --- シフト枠の編集ポップアップ --- */
-  .edit-popup {
-    max-height: 90vh;
-    overflow-y: auto;
-  }
-  .edit-popup .p-sub {
-    font-size: 12px;
-    color: #555;
-    margin-top: 2px;
-  }
-  .circle-list {
-    margin: 0;
-    padding: 6px 8px;
-    list-style: none;
-    max-height: 150px;
-    overflow-y: auto;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 13px;
-  }
-  .circle-list li {
-    padding: 2px 0;
-  }
-  .circle-list .circle-cond {
-    color: #666;
-    font-size: 11px;
-    margin-left: 4px;
-  }
-  .circle-list .circle-placed {
-    color: #1a5fb4;
-    font-size: 11px;
-    margin-left: 4px;
-  }
-  .circle-list .circle-none {
-    color: #888;
-  }
-
-  #adminContent {
-    display: none;
-  }
-
-  /* --- シフト希望登録状況（読み取り専用一覧） --- */
-  .section-title {
-    font-size: 16px;
-    margin: 28px 0 4px;
-  }
-  /* --- 出勤回数の週別集計テーブル --- */
-  #countSummaryWrap {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    max-width: 100%;
-  }
-  #countSummaryWrap table {
-    border-collapse: collapse;
-    white-space: nowrap;
-  }
-  #countSummaryWrap th, #countSummaryWrap td {
-    border: 1px solid #999;
-    padding: 4px 12px;
-    text-align: center;
-    font-size: 13px;
-  }
-  #countSummaryWrap th { background: #f0f0f0; }
-  #countSummaryWrap td.name-col {
-    font-weight: bold;
-    text-align: left;
   }
   #availabilityWrap {
     overflow-x: auto;
@@ -856,11 +643,6 @@
       box-shadow: none;
     }
   }
-
-  @media (max-width: 480px) {
-    body { margin: 10px; }
-    h1 { font-size: 16px; }
-  }
 </style>
 </head>
 <body>
@@ -869,10 +651,10 @@
 
 <div id="adminContent">
   <div class="controls">
-    <button id="backBtn">← シフト希望登録に戻る</button>
-    <button id="regenerateBtn">再生成</button>
-    <button id="printBtn">印刷</button>
-    <button id="sendBtn">LINEに送信</button>
+    <button id="backBtn" class="btn btn-quiet">← シフト希望登録に戻る</button>
+    <button id="regenerateBtn" class="btn btn-primary">再生成</button>
+    <button id="printBtn" class="btn">印刷</button>
+    <button id="sendBtn" class="btn btn-line">LINEに送信</button>
   </div>
 
   <div id="tableWrap"></div>

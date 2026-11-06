@@ -4,281 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>シフト希望を募集する</title>
-<style>
-  * {
-    box-sizing: border-box;
-  }
-  body {
-    font-family: "Yu Gothic", "Meiryo", sans-serif;
-    margin: 16px;
-    font-size: 14px;
-  }
-  h1 {
-    font-size: 18px;
-    margin-bottom: 12px;
-  }
-  .controls {
-    margin-bottom: 12px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px 12px;
-  }
-  button {
-    cursor: pointer;
-    font-size: 13px;
-  }
-  #backBtn {
-    padding: 4px 10px;
-  }
-  section {
-    margin-bottom: 22px;
-  }
-  section h2 {
-    font-size: 14px;
-    margin: 0 0 8px;
-    border-left: 4px solid #1a5fb4;
-    padding-left: 8px;
-  }
-  .collapsible-heading {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    cursor: pointer;
-  }
-  .disclosure-arrow {
-    border: none;
-    background: none;
-    cursor: pointer;
-    font-size: 13px;
-    padding: 0 2px;
-    line-height: 1;
-    transition: transform 0.15s;
-  }
-  .disclosure-arrow.open {
-    transform: rotate(90deg);
-  }
-  .detail-block {
-    margin-bottom: 18px;
-  }
-  .detail-block h3 {
-    font-size: 13px;
-    margin: 0 0 6px;
-    color: #333;
-  }
-  .param-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 8px;
-  }
-  .param-row select,
-  .param-row input[type="time"] {
-    font-size: 14px;
-    padding: 4px 6px;
-  }
-  .weekday-table-scroll {
-    overflow-x: auto;
-    max-width: 100%;
-  }
-  table.weekday-table {
-    border-collapse: collapse;
-  }
-  table.weekday-table th, table.weekday-table td {
-    border: 1px solid #999;
-    padding: 4px 8px;
-    text-align: center;
-    white-space: nowrap;
-  }
-  table.weekday-table th {
-    background: #f0f0f0;
-  }
-  table.weekday-table input[type="time"] {
-    font-size: 13px;
-    padding: 2px 4px;
-  }
-  table.weekday-table select.count-select {
-    font-size: 13px;
-    padding: 2px 4px;
-  }
-  table.weekday-table .closed-label {
-    color: #c01c28;
-    font-size: 13px;
-  }
-  table.weekday-table .row-label {
-    background: #f0f0f0;
-    font-weight: bold;
-  }
-  .closed-weekday-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
-  }
-  .closed-weekday-row select {
-    font-size: 14px;
-    padding: 4px 6px;
-  }
-  .remove-closed-weekday-btn {
-    padding: 2px 8px;
-  }
-  #addClosedWeekdayBtn {
-    padding: 4px 10px;
-  }
-  .temp-closure-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    max-width: 420px;
-    padding: 4px 0;
-    border-bottom: 1px solid #eee;
-  }
-  .temp-closure-btn {
-    padding: 4px 10px;
-  }
-  .temp-closure-btn.is-temp {
-    background: #fde3e3;
-    border-color: #c01c28;
-  }
-  .save-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  #saveBtn {
-    padding: 8px 20px;
-    border-radius: 6px;
-    border: 1px solid #1a5fb4;
-    background: #1a5fb4;
-    color: #fff;
-    font-weight: bold;
-  }
-  .saved-note {
-    color: #1a5fb4;
-    font-size: 13px;
-  }
-  .recruit-line {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-  }
-  #startDateBtn {
-    padding: 4px 10px;
-  }
-  #recruitWeeksSelect {
-    font-size: 14px;
-    padding: 4px 6px;
-  }
-  #recruitBtn {
-    padding: 4px 10px;
-  }
-  #recruitRestoreBtn {
-    padding: 4px 10px;
-  }
-  .hidden-date-input {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  /* --- popup (password gate) --- */
-  .overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-  }
-  .popup {
-    background: #fff;
-    border-radius: 10px;
-    padding: 20px 24px;
-    width: 340px;
-    max-width: 90vw;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-  }
-  .popup-header {
-    text-align: center;
-    margin-bottom: 14px;
-  }
-  .popup-header .p-date {
-    font-size: 20px;
-    font-weight: bold;
-  }
-  .popup-field {
-    margin-bottom: 10px;
-  }
-  .popup-field label {
-    display: block;
-    font-size: 12px;
-    color: #555;
-    margin-bottom: 2px;
-  }
-  .popup-field input[type="password"],
-  .popup-field input[type="text"] {
-    width: 100%;
-    font-size: 14px;
-    padding: 6px;
-    box-sizing: border-box;
-  }
-  .popup-field .error-text {
-    color: #c01c28;
-    font-size: 12px;
-    margin-top: 6px;
-    min-height: 14px;
-  }
-  .popup-footer {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 18px;
-  }
-  .popup-footer button {
-    padding: 8px 18px;
-    font-size: 14px;
-    border-radius: 6px;
-    border: 1px solid #999;
-    background: #f5f5f5;
-  }
-  .popup-footer .confirm-btn {
-    background: #1a5fb4;
-    color: #fff;
-    border-color: #1a5fb4;
-    font-weight: bold;
-  }
-
-  #adminContent {
-    display: none;
-  }
-  .popup.popup-wide {
-    width: 440px;
-  }
-  .popup-field textarea {
-    width: 100%;
-    font-size: 14px;
-    padding: 6px;
-    box-sizing: border-box;
-    font-family: inherit;
-  }
-  .popup-field .check-label {
-    font-size: 14px;
-    color: #222;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .quota-note {
-    font-size: 12px;
-    color: #555;
-    margin-top: 4px;
-  }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -286,13 +15,13 @@
 
 <div id="adminContent">
   <div class="controls">
-    <button id="backBtn">← 管理ページに戻る</button>
+    <button id="backBtn" class="btn btn-quiet">← 管理ページに戻る</button>
   </div>
 
-  <section>
+  <section class="panel">
     <h2>シフト希望の募集</h2>
     <div class="recruit-line">
-      <button type="button" id="startDateBtn"></button>
+      <button type="button" id="startDateBtn" class="btn"></button>
       <input type="date" id="startDateInput" class="hidden-date-input" tabindex="-1">
       <span>から</span>
       <select id="recruitWeeksSelect">
@@ -304,13 +33,13 @@
       <span>分のシフトを募集する</span>
     </div>
     <div class="save-row">
-      <button id="recruitBtn">募集する</button>
-      <button id="recruitRestoreBtn" style="display:none;">復元</button>
+      <button id="recruitBtn" class="btn btn-primary">募集する</button>
+      <button id="recruitRestoreBtn" class="btn btn-quiet" style="display:none;">復元</button>
       <span class="saved-note" id="recruitSavedNote" style="display:none;">反映しました</span>
     </div>
   </section>
 
-  <section>
+  <section class="panel">
     <h2 id="detailSettingsToggle" class="collapsible-heading">
       <button type="button" id="detailSettingsArrow" class="disclosure-arrow">&gt;</button>
       詳細設定
@@ -327,7 +56,7 @@
       <div class="detail-block">
         <h3>定休日</h3>
         <div id="closedWeekdayRows"></div>
-        <button type="button" id="addClosedWeekdayBtn">+ 追加</button>
+        <button type="button" id="addClosedWeekdayBtn" class="btn btn-sm">+ 追加</button>
       </div>
 
       <div class="detail-block">
@@ -350,7 +79,7 @@
       </div>
 
       <div class="save-row">
-        <button id="saveBtn">保存</button>
+        <button id="saveBtn" class="btn btn-primary">保存</button>
         <span class="saved-note" id="savedNote" style="display:none;">保存しました</span>
       </div>
     </div>

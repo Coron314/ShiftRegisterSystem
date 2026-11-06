@@ -427,12 +427,8 @@
     if (document.getElementById("sdbStyle")) return;
     const style = document.createElement("style");
     style.id = "sdbStyle";
+    // 見た目は style.css 側。ここには印刷時に隠す指定だけを置く
     style.textContent = `
-      .sdb-password-input { width: 100%; font-size: 16px; padding: 6px; box-sizing: border-box; }
-      .sdb-status { position: fixed; right: 12px; bottom: 12px; padding: 6px 12px; border-radius: 6px; font-size: 12px; z-index: 900; display: none; font-family: "Yu Gothic", "Meiryo", sans-serif; }
-      .sdb-saving { background: #f0f0f0; color: #555; border: 1px solid #ccc; }
-      .sdb-saved { background: #e6f4ea; color: #1e6b34; border: 1px solid #a8d5b5; }
-      .sdb-status.sdb-error { background: #fde3e3; color: #c01c28; border: 1px solid #f2a7a7; font-weight: bold; }
       @media print { .sdb-status { display: none !important; } }
     `;
     document.head.appendChild(style);

@@ -4,123 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>管理ページ</title>
-<style>
-  * {
-    box-sizing: border-box;
-  }
-  body {
-    font-family: "Yu Gothic", "Meiryo", sans-serif;
-    margin: 16px;
-    font-size: 14px;
-  }
-  h1 {
-    font-size: 18px;
-    margin-bottom: 12px;
-  }
-  .controls {
-    margin-bottom: 16px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  button {
-    cursor: pointer;
-    font-size: 13px;
-  }
-  #backBtn {
-    padding: 4px 10px;
-  }
-  .menu-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    max-width: 320px;
-    width: 100%;
-  }
-  .menu-btn {
-    text-align: left;
-    padding: 14px 16px;
-    font-size: 14px;
-    border: 1px solid #999;
-    border-radius: 8px;
-    background: #f5f5f5;
-    width: 100%;
-  }
-  .menu-btn:hover {
-    background: #eaeaea;
-  }
-
-  /* --- popup (password gate) --- */
-  .overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-  }
-  .popup {
-    background: #fff;
-    border-radius: 10px;
-    padding: 20px 24px;
-    width: 340px;
-    max-width: 90vw;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-  }
-  .popup-header {
-    text-align: center;
-    margin-bottom: 14px;
-  }
-  .popup-header .p-date {
-    font-size: 20px;
-    font-weight: bold;
-  }
-  .popup-field {
-    margin-bottom: 10px;
-  }
-  .popup-field label {
-    display: block;
-    font-size: 12px;
-    color: #555;
-    margin-bottom: 2px;
-  }
-  .popup-field input[type="password"],
-  .popup-field input[type="text"] {
-    width: 100%;
-    font-size: 14px;
-    padding: 6px;
-    box-sizing: border-box;
-  }
-  .popup-field .error-text {
-    color: #c01c28;
-    font-size: 12px;
-    margin-top: 6px;
-    min-height: 14px;
-  }
-  .popup-footer {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 18px;
-  }
-  .popup-footer button {
-    padding: 8px 18px;
-    font-size: 14px;
-    border-radius: 6px;
-    border: 1px solid #999;
-    background: #f5f5f5;
-  }
-  .popup-footer .confirm-btn {
-    background: #1a5fb4;
-    color: #fff;
-    border-color: #1a5fb4;
-    font-weight: bold;
-  }
-
-  #adminContent {
-    display: none;
-  }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -128,13 +15,13 @@
 
 <div id="adminContent">
   <div class="controls">
-    <button id="backBtn">← シフト希望登録に戻る</button>
+    <button id="backBtn" class="btn btn-quiet">← シフト希望登録に戻る</button>
   </div>
 
   <div class="menu-list">
-    <button class="menu-btn" id="staffMenuBtn">スタッフ登録・削除</button>
-    <button class="menu-btn" id="shiftParamsMenuBtn">シフト希望を募集する</button>
-    <button class="menu-btn" id="passwordMenuBtn">パスワード管理</button>
+    <button class="menu-card" id="staffMenuBtn"><span class="menu-title">スタッフ登録・削除</span><span class="menu-desc">メンバーの追加と削除、並び順、担当の属性</span></button>
+    <button class="menu-card" id="shiftParamsMenuBtn"><span class="menu-title">シフト希望を募集する</span><span class="menu-desc">募集期間の設定と通知、定休日・必要人数などの詳細設定</span></button>
+    <button class="menu-card" id="passwordMenuBtn"><span class="menu-title">パスワード管理</span><span class="menu-desc">管理用の4桁パスワードを変更</span></button>
   </div>
 </div>
 
