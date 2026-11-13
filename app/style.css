@@ -1,0 +1,600 @@
+/* ==========================================================================
+   バイトシフト自動作成システム — 共通デザイン
+   --------------------------------------------------------------------------
+   方針：薄い色・装飾なし・押しやすさ最優先（ボタンは高さ44px以上、間隔を広めに）。
+   ・全画面共通の見た目（色・文字・ボタン・フォーム・ポップアップ・管理画面の部品）をここに集約する。
+   ・次の2つは「見た目を変えない」指定のため、このファイルでは触らず各HTMLのインラインCSSに残している：
+       1) シフト希望登録画面のテーブル（#tableWrap と中の table / .cell-btn など）
+       2) シフト作成画面のA4シート（.a4-sheet とその中身）
+     そのため table / th / td / button / input などの要素セレクタは、ここでは単独で使わない
+     （必ず .btn や .popup など自前のクラスの内側に限定する）。
+   ※変数名（--ai-700 など）は旧デザインのまま。値だけ薄い色に差し替えている。
+   ========================================================================== */
+
+/* ---------- トークン ---------- */
+:root {
+  /* 主色（薄い青）：--ai-700 は文字・枠線に使える濃さ、--ai-100 / --ai-50 はボタンや面の薄い塗り */
+  --ai-900: #2b3a4f;
+  --ai-700: #3b6ea5;
+  --ai-600: #5b8bbf;
+  --ai-100: #e3edf8;
+  --ai-50:  #f1f6fc;
+  --yamabuki: #f2c14e;     /* フォーカス枠のみに使用 */
+  --shu: #c0392b;
+  --shu-50: #fdf0ee;
+  --wakatake: #2f8a5f;
+  --wakatake-50: #eaf6ef;
+  --line-green: #2f8a5f;
+  --sumi: #2b3340;
+  --sumi-soft: #5d6776;
+  --sumi-mute: #8a93a0;
+  --asa: #f7f8fa;          /* ページ背景 */
+  --surface: #ffffff;
+  --border: #e3e7ed;
+  --border-strong: #c9d0da;
+
+  /* 文字 */
+  --font-ui: "Zen Kaku Gothic New", "Yu Gothic", "Meiryo", sans-serif;
+  --font-legacy: "Yu Gothic", "Meiryo", sans-serif;   /* シフト表・A4シートは従来のフォントのまま */
+
+  --r-control: 8px;
+  --r-card: 10px;
+  --r-popup: 14px;
+
+  --tap: 44px;             /* 押しやすさの最低ライン（ボタン・入力欄の高さ） */
+
+  --shadow-card: none;
+  --shadow-popup: 0 8px 30px rgba(0, 0, 0, 0.16);
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* ---------- 基本 ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  padding: 0 16px 32px;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--sumi);
+  background: var(--asa);
+}
+
+/* シフト表・A4シートは従来どおりのフォントで描く（文字の大きさ・折り返し・画像化の結果を変えないため） */
+#tableWrap,
+#availabilityWrap,
+.a4-sheet,
+.drag-ghost {
+  font-family: var(--font-legacy);
+  line-height: normal;   /* body の行間（1.6）を引き継がせない */
+}
+
+/* ---------- ページ見出し（飾りなし） ---------- */
+body > h1 {
+  margin: 0 -16px 16px;
+  padding: 16px 20px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--sumi);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+/* ---------- ボタン ---------- */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--tap);
+  padding: 0 20px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--sumi);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  cursor: pointer;
+  transition: background-color 0.12s var(--ease), border-color 0.12s var(--ease);
+}
+.btn:hover { background: var(--ai-50); border-color: var(--ai-600); }
+.btn:active { background: var(--ai-100); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* 主操作：薄い青の塗り */
+.btn-primary {
+  color: var(--ai-900);
+  font-weight: 700;
+  background: var(--ai-100);
+  border-color: var(--ai-600);
+}
+.btn-primary:hover { background: #d3e3f5; border-color: var(--ai-700); }
+.btn-primary:active { background: #c6dbf1; }
+
+/* 補助操作：戻る・読み込みなど */
+.btn-quiet {
+  color: var(--sumi-soft);
+  background: transparent;
+  border-color: transparent;
+}
+.controls > .btn-quiet:first-child { margin-left: -10px; }
+.btn-quiet:hover { color: var(--sumi); background: var(--ai-50); border-color: transparent; }
+
+/* LINE送信：薄い緑 */
+.btn-line {
+  color: #1f6b46;
+  font-weight: 700;
+  background: var(--wakatake-50);
+  border-color: var(--wakatake);
+}
+.btn-line:hover { background: #d9efe3; border-color: #1f6b46; }
+
+.btn-danger { color: var(--shu); border-color: var(--shu); }
+.btn-danger:hover { background: var(--shu-50); border-color: var(--shu); }
+
+.btn-sm { min-height: 40px; padding: 0 14px; font-size: 14px; }
+
+.btn:focus-visible,
+.menu-card:focus-visible,
+.disclosure-arrow:focus-visible,
+.popup button:focus-visible,
+.del-row-btn:focus-visible {
+  outline: 3px solid var(--yamabuki);
+  outline-offset: 2px;
+}
+
+/* ---------- フォーム部品（自前クラスの内側に限定） ---------- */
+.popup input[type="text"],
+.popup input[type="password"],
+.popup select,
+.popup textarea,
+.form-field input,
+.param-row select,
+.param-row input,
+.recruit-line select,
+.closed-weekday-row select,
+.weekday-table select,
+.weekday-table input,
+.name-cell input[type="text"],
+#staffTableWrap input[type="text"],
+.attr-select {
+  font: inherit;
+  font-size: 15px;
+  color: var(--sumi);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  padding: 8px 10px;
+  min-height: var(--tap);
+}
+.popup input[type="text"],
+.popup input[type="password"],
+.popup select,
+.popup textarea,
+.form-field input { width: 100%; }
+
+.popup input:focus,
+.popup select:focus,
+.popup textarea:focus,
+.form-field input:focus,
+.param-row select:focus,
+.recruit-line select:focus,
+.closed-weekday-row select:focus,
+.weekday-table select:focus,
+.weekday-table input:focus,
+.name-cell input:focus,
+#staffTableWrap input:focus,
+.attr-select:focus {
+  outline: none;
+  border-color: var(--ai-600);
+  box-shadow: 0 0 0 3px var(--ai-100);
+}
+
+.popup input[type="checkbox"],
+.check-label input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  accent-color: var(--ai-700);
+}
+
+.popup textarea { font-family: inherit; line-height: 1.5; resize: vertical; }
+
+/* ---------- ポップアップ ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(30, 40, 55, 0.3);
+  font-family: var(--font-ui);
+}
+.popup {
+  width: 360px;
+  max-width: 100%;
+  padding: 22px 24px 20px;
+  color: var(--sumi);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-popup);
+  box-shadow: var(--shadow-popup);
+}
+.popup.popup-wide { width: 460px; }
+.popup.send-popup { width: 480px; }
+
+.popup-header { text-align: center; margin-bottom: 16px; }
+.popup-header .p-name { font-size: 14px; color: var(--sumi-soft); }
+.popup-header .p-date { font-size: 19px; font-weight: 700; }
+.popup-header .p-sub { font-size: 13px; color: var(--sumi-soft); margin-top: 2px; }
+
+.popup-field { margin-bottom: 14px; }
+.popup-field label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sumi-soft);
+}
+.popup-field input[type="text"] + input[type="text"],
+.popup-field select + input[type="text"] { margin-top: 8px; }
+.popup-field .check-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  font-size: 15px;
+  color: var(--sumi);
+}
+.popup-field .error-text {
+  min-height: 16px;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--shu);
+}
+.popup-field .time-row { display: flex; align-items: center; gap: 6px; }
+.popup-field .time-row select { flex: 1; }
+
+.popup-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 20px;
+}
+.popup-footer button {
+  min-height: var(--tap);
+  padding: 0 20px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--sumi-soft);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  cursor: pointer;
+  transition: background-color 0.12s var(--ease), border-color 0.12s var(--ease);
+}
+.popup-footer button:hover { background: var(--asa); border-color: var(--sumi-mute); }
+.popup-footer .confirm-btn {
+  margin-left: auto;
+  padding: 0 28px;
+  font-weight: 700;
+  color: var(--ai-900);
+  background: var(--ai-100);
+  border-color: var(--ai-600);
+}
+.popup-footer .confirm-btn:hover { background: #d3e3f5; border-color: var(--ai-700); }
+.popup-footer .delete-btn { color: var(--shu); border-color: var(--shu); }
+.popup-footer .delete-btn:hover { background: var(--shu-50); border-color: var(--shu); }
+
+/* シフト希望入力ポップアップの ○/✕/△ ボタン */
+.popup-marks { display: flex; justify-content: center; gap: 12px; margin-bottom: 18px; }
+.popup-mark-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 64px;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--r-card);
+  cursor: pointer;
+  transition: border-color 0.12s var(--ease), background-color 0.12s var(--ease);
+}
+.popup-mark-btn:hover { border-color: var(--border-strong); background: var(--asa); }
+.popup-mark-btn img { display: block; width: 34px; height: 34px; }
+.popup-mark-btn.selected {
+  background: var(--ai-50);
+  border-color: var(--ai-700);
+}
+
+/* 編集ポップアップ（シフト枠・ラスト） */
+.edit-popup { max-height: 90vh; overflow-y: auto; }
+.edit-popup select .help-option,
+.edit-popup select.help-selected { color: var(--shu); }
+.circle-list {
+  margin: 0;
+  padding: 8px 10px;
+  list-style: none;
+  max-height: 150px;
+  overflow-y: auto;
+  font-size: 13px;
+  background: var(--asa);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+}
+.circle-list li { padding: 2px 0; }
+.circle-list .circle-cond { margin-left: 4px; font-size: 12px; color: var(--sumi-soft); }
+.circle-list .circle-placed { margin-left: 4px; font-size: 12px; color: var(--ai-700); font-weight: 500; }
+.circle-list .circle-none { color: var(--sumi-mute); }
+
+/* LINE送信ポップアップ */
+.send-previews { display: flex; gap: 8px; justify-content: center; margin-bottom: 14px; }
+.send-previews img {
+  width: 120px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.send-note, .quota-note { margin-top: 6px; font-size: 13px; color: var(--sumi-soft); }
+
+/* ---------- 保存状況の表示（db.js が出す） ---------- */
+.sdb-status {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 900;
+  display: none;
+  padding: 8px 14px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+}
+.sdb-saving { color: var(--sumi-soft); background: var(--surface); }
+.sdb-saved  { color: #1f6b46; background: var(--wakatake-50); border-color: #bfe0cd; }
+.sdb-status.sdb-error { color: var(--shu); background: var(--shu-50); border-color: #efc0ba; font-weight: 700; }
+
+/* ---------- 補足文・空状態 ---------- */
+.empty-note { margin: 0 0 10px; font-size: 14px; color: var(--sumi-soft); }
+.saved-note { font-size: 14px; font-weight: 700; color: var(--wakatake); }
+.error-text { color: var(--shu); }
+.message { min-height: 20px; margin-top: 12px; font-size: 14px; font-weight: 500; }
+.message.error { color: var(--shu); }
+.message.ok { color: var(--wakatake); }
+
+/* ---------- 管理メニュー ---------- */
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 480px;
+}
+.menu-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 64px;
+  padding: 14px 44px 14px 18px;
+  font: inherit;
+  text-align: left;
+  color: var(--sumi);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  cursor: pointer;
+  transition: background-color 0.12s var(--ease), border-color 0.12s var(--ease);
+}
+.menu-card:hover { background: var(--ai-50); border-color: var(--ai-600); }
+.menu-card:active { background: var(--ai-100); }
+.menu-card::after {
+  content: "";
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border-top: 2px solid var(--sumi-mute);
+  border-right: 2px solid var(--sumi-mute);
+  transform: translateY(-50%) rotate(45deg);
+}
+.menu-card .menu-title { display: block; font-size: 16px; font-weight: 700; }
+.menu-card .menu-desc { display: block; margin-top: 2px; font-size: 13px; color: var(--sumi-soft); }
+
+/* ---------- 管理画面のセクション ---------- */
+.panel {
+  margin-bottom: 16px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+}
+.panel h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.collapsible-heading { display: flex; align-items: center; gap: 6px; cursor: pointer; min-height: var(--tap); }
+.panel h2.collapsible-heading { margin-bottom: 0; }
+#detailSettingsBody { margin-top: 16px; }
+.disclosure-arrow {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 4px 8px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--sumi-soft);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: transform 0.15s var(--ease);
+}
+.disclosure-arrow.open { transform: rotate(90deg); }
+
+.detail-block { margin-bottom: 22px; }
+.detail-block h3 { margin: 0 0 8px; font-size: 15px; font-weight: 700; color: var(--sumi); }
+.param-row, .closed-weekday-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.recruit-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  font-size: 15px;
+}
+.save-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 12px; }
+.hidden-date-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+#startDateBtn {
+  font-weight: 700;
+  background: var(--ai-50);
+  border-color: var(--ai-600);
+}
+
+.remove-closed-weekday-btn {
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0 12px;
+  font: inherit;
+  color: var(--sumi-soft);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  cursor: pointer;
+}
+.remove-closed-weekday-btn:hover { color: var(--shu); border-color: var(--shu); background: var(--shu-50); }
+
+.temp-closure-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  max-width: 440px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.temp-closure-btn {
+  min-height: 40px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--sumi);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  cursor: pointer;
+}
+.temp-closure-btn:hover { background: var(--ai-50); border-color: var(--ai-600); }
+.temp-closure-btn.is-temp { color: var(--shu); font-weight: 700; background: var(--shu-50); border-color: var(--shu); }
+
+/* ---------- 管理画面の表（スタッフ一覧・曜日別設定・出勤回数） ---------- */
+#staffTableWrap,
+.weekday-table-scroll,
+#countSummaryWrap {
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+}
+#staffTableWrap table,
+table.weekday-table,
+#countSummaryWrap table { border-collapse: collapse; }
+#staffTableWrap table { width: auto; }
+#staffTableWrap th, #staffTableWrap td,
+table.weekday-table th, table.weekday-table td,
+#countSummaryWrap th, #countSummaryWrap td {
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+}
+#staffTableWrap th, table.weekday-table th, #countSummaryWrap th {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sumi-soft);
+  background: var(--asa);
+}
+#staffTableWrap th, #staffTableWrap td { text-align: left; }
+table.weekday-table th, table.weekday-table td { text-align: center; white-space: nowrap; }
+table.weekday-table td.row-label, table.weekday-table .row-label { font-weight: 700; color: var(--sumi-soft); background: var(--asa); }
+table.weekday-table .closed-label { font-size: 13px; font-weight: 700; color: var(--shu); }
+table.weekday-table select, table.weekday-table input { padding: 4px 6px; font-size: 14px; }
+
+#countSummaryWrap table { white-space: nowrap; }
+#countSummaryWrap th, #countSummaryWrap td { text-align: center; font-size: 14px; padding: 6px 14px; }
+#countSummaryWrap td.name-col { text-align: left; font-weight: 700; }
+#countSummaryWrap tr:last-child td { border-bottom: 0; }
+
+.name-cell { display: flex; align-items: center; gap: 4px; }
+.name-cell input[type="text"] { width: 100%; min-width: 70px; flex: 1; }
+#staffTableWrap input[type="text"] { width: 100%; min-width: 90px; }
+.attr-select { width: 100%; min-width: 120px; }
+.del-row-btn {
+  flex-shrink: 0;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--sumi-mute);
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.del-row-btn:hover { color: var(--shu); background: var(--shu-50); }
+.drag-handle { padding: 12px 8px; font-size: 18px; color: var(--sumi-mute); cursor: grab; user-select: none; touch-action: none; }
+.drag-handle:hover { color: var(--sumi); }
+tr.staff-row.dragging { opacity: 0.4; }
+tr.staff-row.drag-over { box-shadow: inset 0 3px 0 var(--ai-600); }
+
+/* 自動シフト作成画面の見出し */
+.section-title { margin: 30px 0 8px; font-size: 16px; font-weight: 700; }
+
+/* パスワード管理 */
+.form { max-width: 380px; padding: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); }
+.form-field { margin-bottom: 14px; }
+.form-field label { display: block; margin-bottom: 4px; font-size: 13px; font-weight: 500; color: var(--sumi-soft); }
+.form-field input { font-size: 16px; letter-spacing: 0.2em; }
+
+#adminContent { display: none; }
+
+/* ---------- 画面が狭いとき ---------- */
+@media (max-width: 480px) {
+  body { padding: 0 10px 28px; }
+  body > h1 { margin: 0 -10px 12px; padding: 14px 16px; font-size: 17px; }
+  .panel { padding: 16px 14px; }
+  .popup { padding: 20px 18px 18px; }
+}
+
+/* ---------- 動きを減らす設定 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ---------- 印刷：余白・背景は一切足さない（A4シートの印刷結果を変えないため） ---------- */
+@media print {
+  body { padding: 0; background: #fff; }
+}

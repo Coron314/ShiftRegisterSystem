@@ -4,35 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>シフト希望登録</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 <style>
-  * {
-    box-sizing: border-box;
-  }
-  body {
-    font-family: "Yu Gothic", "Meiryo", sans-serif;
-    margin: 16px;
-    font-size: 14px;
-  }
-  h1 {
-    font-size: 18px;
-    margin-bottom: 12px;
-  }
-  .controls {
-    margin-bottom: 12px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px 12px;
-  }
-  .controls label {
-    font-size: 14px;
-  }
   button {
     cursor: pointer;
     font-size: 13px;
   }
+  /* 日付行を上に固定するため、表の入れ物自体を縦にもスクロールさせる
+     （高さは fitTableWrapHeight() が画面の残りに合わせて設定する） */
   #tableWrap {
-    overflow-x: auto;
+    overflow: auto;
     -webkit-overflow-scrolling: touch;
     max-width: 100%;
     border: 1px solid #999;
@@ -50,6 +34,14 @@
   th {
     background: #f0f0f0;
   }
+  /* 日付行：縦スクロールしても表が続く限り上端に固定表示する。
+     罫線は固定表示に追従しないため、下の罫線は内側の影で描く */
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    box-shadow: inset 0 -1px 0 #999;
+  }
   th.sat { color: #1a5fb4; }
   th.sun { color: #c01c28; }
   .name-display {
@@ -64,6 +56,7 @@
   th:first-child {
     z-index: 3;
     background: #f0f0f0;
+    box-shadow: inset 0 -1px 0 #999, 2px 0 4px rgba(0,0,0,0.08);
   }
   td:first-child {
     background: #fff;
@@ -107,9 +100,21 @@
   .cell-btn.cell-cross { background: #fde3e3; }
   .cell-btn.cell-circle-full { background: #dbeafe; }
   .cell-btn.cell-circle-partial { background: #eff6ff; }
+  .cell-btn.cell-triangle { background: #dcfce7; }
   .cell-btn .mark-img-big { width: 32px; height: 32px; display: block; }
   .cell-btn .mark-img-small { width: 16px; height: 16px; display: block; margin-bottom: 2px; }
   .cell-btn .sub-line { font-size: 10px; color: #333; }
+  .triangle-note {
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    background: #dcfce7;
+    border: 1px solid #86efac;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #14532d;
+  }
+  .triangle-note ul { margin: 0; padding-left: 1.2em; }
 
   .closed-slash-cell {
     width: 72px;
@@ -122,121 +127,6 @@
       transparent calc(50% + 1px)
     );
   }
-
-  /* --- popup --- */
-  .overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-  }
-  .popup {
-    background: #fff;
-    border-radius: 10px;
-    padding: 20px 24px;
-    width: 340px;
-    max-width: 90vw;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-  }
-  .popup-header {
-    text-align: center;
-    margin-bottom: 14px;
-  }
-  .popup-header .p-name {
-    font-size: 13px;
-    color: #666;
-  }
-  .popup-header .p-date {
-    font-size: 20px;
-    font-weight: bold;
-  }
-  .popup-marks {
-    display: flex;
-    justify-content: center;
-    gap: 16px;
-    margin-bottom: 18px;
-  }
-  .popup-mark-btn {
-    width: 70px;
-    height: 56px;
-    border: 2px solid #ccc;
-    border-radius: 8px;
-    background: #fafafa;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .popup-mark-btn img {
-    width: 34px;
-    height: 34px;
-    display: block;
-  }
-  .popup-mark-btn.selected {
-    border-color: #666;
-    background: #e4e4e4;
-  }
-  .popup-field {
-    margin-bottom: 10px;
-  }
-  .popup-field label {
-    display: block;
-    font-size: 12px;
-    color: #555;
-    margin-bottom: 2px;
-  }
-  .popup-field select, .popup-field input[type="text"] {
-    width: 100%;
-    font-size: 14px;
-    padding: 4px;
-    box-sizing: border-box;
-  }
-  .popup-field input[type="text"] {
-    margin-top: 4px;
-  }
-  .popup-footer {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 18px;
-  }
-  .popup-footer button {
-    padding: 8px 18px;
-    font-size: 14px;
-    border-radius: 6px;
-    border: 1px solid #999;
-    background: #f5f5f5;
-  }
-  .popup-footer .confirm-btn {
-    background: #1a5fb4;
-    color: #fff;
-    border-color: #1a5fb4;
-    font-weight: bold;
-  }
-
-  #adminBtn, #autoShiftBtn, #manualShiftBtn, #reloadBtn {
-    padding: 4px 10px;
-  }
-
-  .popup-field .error-text {
-    color: #c01c28;
-    font-size: 12px;
-    margin-top: 6px;
-    min-height: 14px;
-  }
-
-  .popup-field input[type="password"] {
-    width: 100%;
-    font-size: 14px;
-    padding: 6px;
-    box-sizing: border-box;
-  }
-
-  @media (max-width: 480px) {
-    body { margin: 10px; }
-    h1 { font-size: 16px; }
-  }
 </style>
 </head>
 <body>
@@ -244,10 +134,10 @@
 <h1>シフト希望登録</h1>
 
 <div class="controls">
-  <button id="adminBtn">管理</button>
-  <button id="autoShiftBtn">自動シフト作成</button>
-  <button id="manualShiftBtn">シフトを自作する</button>
-  <button id="reloadBtn">最新の入力を読み込む</button>
+  <button id="adminBtn" class="btn">管理</button>
+  <button id="autoShiftBtn" class="btn btn-primary">自動シフト作成</button>
+  <button id="manualShiftBtn" class="btn">シフトを自作する</button>
+  <button id="reloadBtn" class="btn btn-quiet">最新の入力を読み込む</button>
 </div>
 
 <div id="tableWrap"></div>
@@ -269,6 +159,10 @@
 
   const ICON_CIRCLE = "../Circle.png";
   const ICON_CROSS = "../Cross.png";
+  // △（緑）。画像ファイルを増やさないようSVGをそのまま埋め込む
+  const ICON_TRIANGLE = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,12 91,86 9,86" fill="none" stroke="#16a34a" stroke-width="13" stroke-linejoin="round"/></svg>'
+  );
 
   const AUTO_GENERATE_KEY = "shiftAutoGenerate";
   const MANUAL_CREATE_KEY = "shiftManualCreate";
@@ -387,7 +281,16 @@
 
     tableWrap.innerHTML = html;
     bindTableEvents();
+    fitTableWrapHeight();
   }
+
+  // 表の入れ物の高さを「画面の下端まで」に合わせる（表がそれより短ければ内容どおり）
+  function fitTableWrapHeight() {
+    const top = tableWrap.getBoundingClientRect().top;
+    const h = Math.max(240, window.innerHeight - top - 12);
+    tableWrap.style.maxHeight = h + "px";
+  }
+  window.addEventListener("resize", fitTableWrapHeight);
 
   function isRecruitClosed(d) {
     const iso = toIsoDate(d);
@@ -407,6 +310,9 @@
     } else if (cell.mark === "×") {
       stateClass = "cell-cross";
       inner = `<img class="mark-img-big" src="${ICON_CROSS}" alt="×">`;
+    } else if (cell.mark === "△") {
+      stateClass = "cell-triangle";
+      inner = `<img class="mark-img-big" src="${ICON_TRIANGLE}" alt="△">`;
     } else {
       const timeLine = combineTime(cell.start, cell.end);
       const hasExtra = !!(timeLine || cell.wish);
@@ -470,6 +376,7 @@
     function refreshMarkButtons() {
       popup.querySelector('[data-popmark="○"]').classList.toggle("selected", draft.mark === "○");
       popup.querySelector('[data-popmark="×"]').classList.toggle("selected", draft.mark === "×");
+      popup.querySelector('[data-popmark="△"]').classList.toggle("selected", draft.mark === "△");
     }
 
     function refreshFieldDisabled() {
@@ -477,10 +384,17 @@
       popup.querySelectorAll(".time-wish-field select, .time-wish-field input[type=text]").forEach(el => {
         el.disabled = !enabled;
       });
+      // △のときは時間・希望の欄を全て隠し、説明文を表示する
+      const isTriangle = draft.mark === "△";
+      popup.querySelectorAll(".time-wish-field").forEach(el => {
+        el.style.display = isTriangle ? "none" : "";
+      });
+      popup.querySelector(".triangle-note").style.display = isTriangle ? "block" : "none";
     }
 
     popup.querySelector('[data-popmark="○"]').addEventListener("click", () => setMark("○"));
     popup.querySelector('[data-popmark="×"]').addEventListener("click", () => setMark("×"));
+    popup.querySelector('[data-popmark="△"]').addEventListener("click", () => setMark("△"));
 
     const startSelect = popup.querySelector("#popStart");
     const startCustom = popup.querySelector("#popStartCustom");
@@ -537,6 +451,13 @@
         <div class="popup-marks">
           <button class="popup-mark-btn" data-popmark="○"><img src="${ICON_CIRCLE}" alt="○"></button>
           <button class="popup-mark-btn" data-popmark="×"><img src="${ICON_CROSS}" alt="×"></button>
+          <button class="popup-mark-btn" data-popmark="△"><img src="${ICON_TRIANGLE}" alt="△"></button>
+        </div>
+        <div class="triangle-note" style="display:none">
+          <ul>
+            <li>主にラクロス部のための機能です</li>
+            <li>何時になるかは分からないが試合/練習が終わり次第入れるというときに△を選択してください</li>
+          </ul>
         </div>
         <div class="time-wish-field popup-field">
           <label>開始時刻希望</label>
